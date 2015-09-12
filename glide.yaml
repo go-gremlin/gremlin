@@ -1,0 +1,4 @@
+package: github.com/go-gremlin/gremlin
+import:
+  - package: github.com/satori/go.uuid
+    ref:     08f0718b61e95ddba0ade3346725fe0e4bf28ca6

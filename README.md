@@ -52,7 +52,7 @@ To actually run queries against the database, make sure the package is imported 
 ```
 or unmarshal it as desired.
 
-You can also use execute a query with bingings like this:-
+You can also execute a query with bindings like this:-
 ```go
 	data, err := gremlin.Query("g.V().has('name', userName).valueMap()").Bindings(gremlin.Bind{"userName": "john"}).Exec()
 ```

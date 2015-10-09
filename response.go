@@ -7,7 +7,6 @@ import (
 )
 
 type Response struct {
-	Request *Request `json:"-"`
 	RequestId string `json:"requestId"`
 	Status *ResponseStatus `json:"status"`
 	Result *ResponseResult `json:"result"`

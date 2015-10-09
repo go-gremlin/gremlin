@@ -46,7 +46,7 @@ To actually run queries against the database, make sure the package is imported 
 		// handle error
 	}
 ```
-`data` is a `JSON` slice of bytes `[]byte`. For example you can print it using:-
+`data` is a `JSON` array in bytes `[]byte` if any data is returned otherwise it is `nil`. For example you can print it using:-
 ```go
 	fmt.Println(string(data))
 ```

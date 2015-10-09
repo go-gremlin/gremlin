@@ -23,8 +23,6 @@ type Server struct {
 
 type Servers []Server
 
-//Connect("ws://localhost:8182|http://localhost:8182,ws://host.local:8182|http://host.local:8182")
-//Connect("")
 func Connect(connString string) (err error) {
 	if strings.TrimSpace(connString) == "" {
 		connString = os.Getenv("GREMLIN_SERVERS")
@@ -73,7 +71,7 @@ func CreateConnection(servers Servers) (err error) {
 			continue
 		}
 		// Set Mime Type
-		config.Header.Set("Mime-Type", MimeType)
+		config.Header.Set("Mime-Type", "application/json")
 		// Connect to the database
 		if conn, connErr = websocket.DialConfig(config); connErr != nil {
 			continue
@@ -115,7 +113,7 @@ func Disconnect() error {
 }
 
 func connectionIsBad() bool {
-	if data, err := NewRequest("graph.features()").Exec().Json(); err != nil || data == nil {
+	if data, err := Query("graph.features()").Exec(); err != nil || data == nil {
 		return true
 	}
 	return false

@@ -31,9 +31,17 @@ At the top of your `main()` function of your program, include the following code
 ```
 At this point, whenever you launch your program it will open a websocket connection to one of your databases. It will also actively check in the background if the connection is still up, falling back to other databases when a connection fails.
 
+Instead of using an environment variable, you can also pass the connection string directly to `Connect()`. This is more convenient in development. For example:-
+```go
+ 	// Create a connection
+	if err := gremlin.Connect("ws://localhost:8182|http://localhost:8182"); err != nil {
+		// handle error
+	}
+```
+
 To actually run queries against the database, make sure the package is imported and issue a gremlin query like this:-
 ```go
-	data, err := gremlin.NewRequest("g.V()").Exec().Json()
+	data, err := gremlin.Query("g.V()").Exec()
 	if err != nil  {
 		// handle error
 	}
@@ -44,7 +52,7 @@ To actually run queries against the database, make sure the package is imported 
 ```
 or unmarshal it as desired.
 
-You can also pass bindings by using `NewRequestWithBindings` instead of `NewRequest` like this:-
+You can also use execute a query with bingings like this:-
 ```go
-	data, err := gremlin.NewRequestWithBindings("g.V().has('name', userName).valueMap()", gremlin.Bindings{"userName": "john"}).Exec().Json()
+	data, err := gremlin.Query("g.V().has('name', userName).valueMap()").Bindings(gremlin.Bind{"userName": "john"}).Exec()
 ```

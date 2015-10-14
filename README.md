@@ -13,35 +13,28 @@ Usage
 ======
 Export the list of databases you want to connect to as `GREMLIN_SERVERS` like so:-
 ```bash
-export GREMLIN_SERVERS="ws://server1:8182|http://server1:8182,ws://server2:8182|http://server2:8182"
+export GREMLIN_SERVERS="ws://server1:8182, ws://server2:8182"
 ```
 
-Import the library in `main.go` eg `import "github.com/go-gremlin/gremlin"`.
+Import the library eg `import "github.com/go-gremlin/gremlin"`.
 
-At the top of your `main()` function of your program, include the following code to open a connection to your database and maintain it:-
+Parse and save your cluster of services. You only need to do this once before submitting any queries (Perhaps in `main()`):-
 ```go
-	// Create a connection
-	if err := gremlin.Connect(""); err != nil {
+	if err := gremlin.NewCluster(); err != nil {
 		// handle error here
 	}
-	// Disconnect when main() exits
-	defer gremlin.Disconnect()
-	// Maintain the connection in the background
-	go gremlin.MaintainConnection()
 ```
-At this point, whenever you launch your program it will open a websocket connection to one of your databases. It will also actively check in the background if the connection is still up, falling back to other databases when a connection fails.
 
-Instead of using an environment variable, you can also pass the connection string directly to `Connect()`. This is more convenient in development. For example:-
+Instead of using an environment variable, you can also pass the servers directly to `NewCluster()`. This is more convenient in development. For example:-
 ```go
- 	// Create a connection
-	if err := gremlin.Connect("ws://localhost:8182|http://localhost:8182"); err != nil {
+	if err := gremlin.NewCluster("ws://dev.local:8182", "ws://staging.local:8182"); err != nil {
 		// handle error
 	}
 ```
 
 To actually run queries against the database, make sure the package is imported and issue a gremlin query like this:-
 ```go
-	data, err := gremlin.Query("g.V()").Exec()
+	data, err := gremlin.Query(`g.V()`).Exec()
 	if err != nil  {
 		// handle error
 	}
@@ -54,5 +47,5 @@ or unmarshal it as desired.
 
 You can also execute a query with bindings like this:-
 ```go
-	data, err := gremlin.Query("g.V().has('name', userName).valueMap()").Bindings(gremlin.Bind{"userName": "john"}).Exec()
+	data, err := gremlin.Query(`g.V().has("name", userName).valueMap()`).Bindings(gremlin.Bind{"userName": "john"}).Exec()
 ```

@@ -2,35 +2,60 @@ package gremlin
 
 import (
 	"encoding/json"
-	"golang.org/x/net/websocket"
 	"errors"
+	"github.com/gorilla/websocket"
+	"net/http"
+	"time"
 )
 
 type Response struct {
-	RequestId string `json:"requestId"`
-	Status *ResponseStatus `json:"status"`
-	Result *ResponseResult `json:"result"`
+	RequestId string          `json:"requestId"`
+	Status    *ResponseStatus `json:"status"`
+	Result    *ResponseResult `json:"result"`
 }
 
 type ResponseStatus struct {
-	Code int `json:"code"`
+	Code       int                    `json:"code"`
 	Attributes map[string]interface{} `json:"attributes"`
-	Message string `json:"message"`
+	Message    string                 `json:"message"`
 }
 
 type ResponseResult struct {
-	Data json.RawMessage `json:"data"`
+	Data json.RawMessage        `json:"data"`
 	Meta map[string]interface{} `json:"meta"`
 }
 
 func (req *Request) Exec() (data []byte, err error) {
-	// Check if we are connected
-	if conn == nil {
-		err = errors.New("You are currently not connected to any database. Please open a connection first.")
+	// Prepare the Data
+	message, err := json.Marshal(req)
+	if err != nil {
 		return
 	}
-	// Submit request
-	if err = websocket.JSON.Send(conn, req); err != nil {
+	// Prepare the request message
+	var requestMessage []byte
+	mimeType := []byte("application/json")
+	mimeTypeLen := byte(len(mimeType))
+	requestMessage = append(requestMessage, mimeTypeLen)
+	requestMessage = append(requestMessage, mimeType...)
+	requestMessage = append(requestMessage, message...)
+	// Open a TCP connection
+	conn, server, err := CreateConnection()
+	if err != nil {
+		return
+	}
+	// Open a new socket connection
+	ws, _, err := websocket.NewClient(conn, server, http.Header{}, 0, len(requestMessage))
+	if err != nil {
+		return
+	}
+	defer ws.Close()
+	if err = ws.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		return
+	}
+	if err = ws.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		return
+	}
+	if err = ws.WriteMessage(websocket.BinaryMessage, requestMessage); err != nil {
 		return
 	}
 	// Data buffer
@@ -38,8 +63,11 @@ func (req *Request) Exec() (data []byte, err error) {
 	inBatchMode := false
 	// Receive data
 	for {
+		if _, message, err = ws.ReadMessage(); err != nil {
+			return
+		}
 		var res *Response
-		if err = websocket.JSON.Receive(conn, &res); err != nil {
+		if err = json.Unmarshal(message, &res); err != nil {
 			return
 		}
 		var items []json.RawMessage
@@ -61,19 +89,19 @@ func (req *Request) Exec() (data []byte, err error) {
 				}
 				dataItems = append(dataItems, items...)
 				data, err = json.Marshal(dataItems)
-				} else {
-					data = res.Result.Data
-				}
-				return
-
-			default:
-				if msg, exists := ErrorMsg[res.Status.Code]; exists {
-					err = errors.New(msg)
-				} else {
-					err = errors.New("An unknown error occured")
-				}
-				return
+			} else {
+				data = res.Result.Data
 			}
+			return
+
+		default:
+			if msg, exists := ErrorMsg[res.Status.Code]; exists {
+				err = errors.New(msg)
+			} else {
+				err = errors.New("An unknown error occured")
+			}
+			return
 		}
-		return
 	}
+	return
+}

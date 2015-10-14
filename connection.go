@@ -1,120 +1,69 @@
 package gremlin
 
 import (
-	"golang.org/x/net/websocket"
-	"strings"
-	"os"
 	"errors"
+	"net"
+	"net/url"
+	"os"
+	"strings"
 	"time"
 )
 
-var conn *websocket.Conn
+var servers []*url.URL
 
-var servers Servers
-
-var userDisconnected bool
-
-var CheckConnection time.Duration = 5
-
-type Server struct {
-	Ws string
-	Origin string
-}
-
-type Servers []Server
-
-func Connect(connString string) (err error) {
-	if strings.TrimSpace(connString) == "" {
-		connString = os.Getenv("GREMLIN_SERVERS")
-	}
-	if connString == "" {
-		err = errors.New("No servers set. Configure servers to connect to using the GREMLIN_SERVERS environment variable.")
+func NewCluster(s ...string) (err error) {
+	servers = nil
+	// If no arguments use environment variable
+	if len(s) == 0 {
+		connString := strings.TrimSpace(os.Getenv("GREMLIN_SERVERS"))
+		if connString == "" {
+			err = errors.New("No servers set. Configure servers to connect to using the GREMLIN_SERVERS environment variable.")
+			return
+		}
+		servers, err = SplitServers(connString)
 		return
 	}
-	if servers, err = SplitServers(connString); err != nil {
-		return
+	// Else use the supplied servers
+	for _, v := range s {
+		var u *url.URL
+		if u, err = url.Parse(v); err != nil {
+			return
+		}
+		servers = append(servers, u)
 	}
-	err = CreateConnection(servers)
 	return
 }
 
-func SplitServers(connString string) (servers Servers, err error) {
+func SplitServers(connString string) (servers []*url.URL, err error) {
 	serverStrings := strings.Split(connString, ",")
-	formatError := errors.New("Connection string is not in expected format. An example of the expected format is 'ws://localhost:8182|http://localhost:8182,ws://host.local:8182|http://host.local:8182'.")
 	if len(serverStrings) < 1 {
-		err = formatError
+		err = errors.New("Connection string is not in expected format. An example of the expected format is 'ws://server1:8182, ws://server2:8182'.")
 		return
 	}
 	for _, serverString := range serverStrings {
-		serverArray := strings.Split(serverString, "|")
-		if len(serverArray) != 2 {
-			err = formatError
+		var u *url.URL
+		if u, err = url.Parse(strings.TrimSpace(serverString)); err != nil {
 			return
 		}
-		server := Server{Ws: strings.TrimSpace(serverArray[0]), Origin: strings.TrimSpace(serverArray[1])}
-		servers = append(servers, server)
-		return
+		servers = append(servers, u)
 	}
 	return
 }
 
-func CreateConnection(servers Servers) (err error) {
-	// Disconnect from current connection if any
-	Disconnect()
-	userDisconnected = false
-	// Create WebSocket config
+func CreateConnection() (conn net.Conn, server *url.URL, err error) {
 	connEstablished := false
-	for _, server := range servers {
-		var config *websocket.Config
-		var connErr error
-		if config, connErr = websocket.NewConfig(server.Ws, server.Origin); connErr != nil {
-			continue
-		}
-		// Set Mime Type
-		config.Header.Set("Mime-Type", "application/json")
-		// Connect to the database
-		if conn, connErr = websocket.DialConfig(config); connErr != nil {
-			continue
-		}
-		// Verify connection
-		if connectionIsBad() {
+	for _, s := range servers {
+		c, err := net.DialTimeout("tcp", s.Host, 1*time.Second)
+		if err != nil {
 			continue
 		}
 		connEstablished = true
+		conn = c
+		server = s
 		break
 	}
 	if !connEstablished {
 		err = errors.New("Could not establish connection. Please check your connection string and ensure at least one server is up.")
 	}
 	return
-}
-
-func MaintainConnection() {
-	if servers == nil {	// there is nothing to maintain
-		return
-	}
-	for {
-		if userDisconnected { // our job here is done
-			return
-		}
-		time.Sleep(CheckConnection * time.Second)
-		if connectionIsBad() {
-			CreateConnection(servers)
-		}
-	}
-}
-
-func Disconnect() error {
-	userDisconnected = true
-	if conn == nil {
-		return nil
-	}
-	return conn.Close()
-}
-
-func connectionIsBad() bool {
-	if data, err := Query("graph.features()").Exec(); err != nil || data == nil {
-		return true
-	}
-	return false
 }

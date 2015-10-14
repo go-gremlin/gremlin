@@ -5,34 +5,34 @@ import (
 )
 
 type Request struct {
-	RequestId string `json:"requestId"`
-	Op string `json:"op"`
-	Processor string `json:"processor"`
-	Args *RequestArgs `json:"args"`
+	RequestId string       `json:"requestId"`
+	Op        string       `json:"op"`
+	Processor string       `json:"processor"`
+	Args      *RequestArgs `json:"args"`
 }
 
 type RequestArgs struct {
-	Gremlin string `json:"gremlin,omitempty"`
-	Session string `json:"session,omitempty"`
-	Bindings Bind `json:"bindings,omitempty"`
-	Language string `json:"language,omitempty"`
-	Rebindings Bind `json:"rebindings,omitempty"`
-	Sasl []byte `json:"sasl,omitempty"`
-	BatchSize int `json:"batchSize,omitempty"`
+	Gremlin    string `json:"gremlin,omitempty"`
+	Session    string `json:"session,omitempty"`
+	Bindings   Bind   `json:"bindings,omitempty"`
+	Language   string `json:"language,omitempty"`
+	Rebindings Bind   `json:"rebindings,omitempty"`
+	Sasl       []byte `json:"sasl,omitempty"`
+	BatchSize  int    `json:"batchSize,omitempty"`
 }
 
 type Bind map[string]interface{}
 
 func Query(query string) *Request {
 	args := &RequestArgs{
-		Gremlin: query,
+		Gremlin:  query,
 		Language: "gremlin-groovy",
 	}
 	req := &Request{
 		RequestId: uuid.NewV4().String(),
-		Op: "eval",
+		Op:        "eval",
 		Processor: "",
-		Args: args,
+		Args:      args,
 	}
 	return req
 }

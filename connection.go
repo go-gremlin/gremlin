@@ -2,7 +2,6 @@ package gremlin
 
 import (
 	"errors"
-	"math/rand"
 	"net"
 	"net/url"
 	"os"
@@ -51,20 +50,9 @@ func SplitServers(connString string) (servers []*url.URL, err error) {
 	return
 }
 
-func shuffleServers() []*url.URL {
-	s := make([]*url.URL, len(servers))
-	rand.Seed(time.Now().UnixNano())
-	perm := rand.Perm(len(servers))
-	for i, v := range perm {
-		s[v] = servers[i]
-	}
-	return s
-}
-
 func CreateConnection() (conn net.Conn, server *url.URL, err error) {
 	connEstablished := false
-	ss := shuffleServers()
-	for _, s := range ss {
+	for _, s := range servers {
 		c, err := net.DialTimeout("tcp", s.Host, 1*time.Second)
 		if err != nil {
 			continue

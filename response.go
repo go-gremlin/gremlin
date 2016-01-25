@@ -25,40 +25,9 @@ type ResponseResult struct {
 	Meta map[string]interface{} `json:"meta"`
 }
 
-func (req *Request) Exec() (data []byte, err error) {
-	// Prepare the Data
-	message, err := json.Marshal(req)
-	if err != nil {
-		return
-	}
-	// Prepare the request message
-	var requestMessage []byte
-	mimeType := []byte("application/json")
-	mimeTypeLen := byte(len(mimeType))
-	requestMessage = append(requestMessage, mimeTypeLen)
-	requestMessage = append(requestMessage, mimeType...)
-	requestMessage = append(requestMessage, message...)
-	// Open a TCP connection
-	conn, server, err := CreateConnection()
-	if err != nil {
-		return
-	}
-	// Open a new socket connection
-	ws, _, err := websocket.NewClient(conn, server, http.Header{}, 0, len(requestMessage))
-	if err != nil {
-		return
-	}
-	defer ws.Close()
-	if err = ws.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
-		return
-	}
-	if err = ws.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
-		return
-	}
-	if err = ws.WriteMessage(websocket.BinaryMessage, requestMessage); err != nil {
-		return
-	}
+func ReadResponse(ws *websocket.Conn) (data []byte, err error) {
 	// Data buffer
+	var message []byte
 	var dataItems []json.RawMessage
 	inBatchMode := false
 	// Receive data
@@ -104,4 +73,41 @@ func (req *Request) Exec() (data []byte, err error) {
 		}
 	}
 	return
+}
+
+func (req *Request) Exec() (data []byte, err error) {
+	// Prepare the Data
+	message, err := json.Marshal(req)
+	if err != nil {
+		return
+	}
+	// Prepare the request message
+	var requestMessage []byte
+	mimeType := []byte("application/json")
+	mimeTypeLen := byte(len(mimeType))
+	requestMessage = append(requestMessage, mimeTypeLen)
+	requestMessage = append(requestMessage, mimeType...)
+	requestMessage = append(requestMessage, message...)
+	// Open a TCP connection
+	conn, server, err := CreateConnection()
+	if err != nil {
+		return
+	}
+	// Open a new socket connection
+	ws, _, err := websocket.NewClient(conn, server, http.Header{}, 0, len(requestMessage))
+	if err != nil {
+		return
+	}
+	defer ws.Close()
+	if err = ws.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		return
+	}
+	if err = ws.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		return
+	}
+	if err = ws.WriteMessage(websocket.BinaryMessage, requestMessage); err != nil {
+		return
+	}
+
+	return ReadResponse(ws)
 }

@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"os"
 	"strings"
-	"time"
 )
 
 var servers []*url.URL
@@ -53,7 +52,7 @@ func SplitServers(connString string) (servers []*url.URL, err error) {
 func CreateConnection() (conn net.Conn, server *url.URL, err error) {
 	connEstablished := false
 	for _, s := range servers {
-		c, err := net.DialTimeout("tcp", s.Host, 10*time.Second)
+		c, err := net.Dial("tcp", s.Host)
 		if err != nil {
 			continue
 		}

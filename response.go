@@ -5,7 +5,6 @@ import (
 	"errors"
 	"github.com/gorilla/websocket"
 	"net/http"
-	"time"
 )
 
 type Response struct {
@@ -99,12 +98,14 @@ func (req *Request) Exec() (data []byte, err error) {
 		return
 	}
 	defer ws.Close()
-	if err = ws.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
-		return
-	}
-	if err = ws.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
-		return
-	}
+	/*
+		if err = ws.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
+			return
+		}
+		if err = ws.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
+			return
+		}
+	*/
 	if err = ws.WriteMessage(websocket.BinaryMessage, requestMessage); err != nil {
 		return
 	}

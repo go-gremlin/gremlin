@@ -2,6 +2,8 @@
 
 This library will allow you to connect to any graph database that supports TinkerPop3 using `Go`. This includes databases like Titan and Neo4J. TinkerPop3 uses Gremlin Server to communicate with clients using either WebSockets or REST API. This library talks to Gremlin Server using WebSockets.
 
+*NB*: Please note that this driver is [currently looking for maintainers](https://github.com/go-gremlin/gremlin/issues/8).
+
 
 Installation
 ==========

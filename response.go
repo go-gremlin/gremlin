@@ -1,10 +1,14 @@
 package gremlin
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/gorilla/websocket"
+	"github.com/satori/go.uuid"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -44,6 +48,31 @@ func ReadResponse(ws *websocket.Conn) (data []byte, err error) {
 		case StatusNoContent:
 			return
 
+		case StatusAuthenticate:
+			user := os.Getenv("GREMLIN_USER")
+			pass := os.Getenv("GREMLIN_PASS")
+			var sasl []byte
+			sasl = append(sasl, 0)
+			sasl = append(sasl, []byte(user)...)
+			sasl = append(sasl, 0)
+			sasl = append(sasl, []byte(pass)...)
+			fmt.Println(sasl)
+			saslEnc := base64.StdEncoding.EncodeToString(sasl)
+
+			args := &RequestArgs{Sasl: saslEnc}
+			fmt.Println("hello dude!")
+			authReq := &Request{
+				RequestId: uuid.NewV4().String(),
+				Processor: "trasversal",
+				Op:        "authentication",
+				Args:      args,
+			}
+			//authData, err = Exec(sReq)
+			//authData, err = sReq.Exec()
+			var authData []byte
+			authData, err = authReq.Exec()
+			fmt.Println(authData, err)
+			return
 		case StatusPartialContent:
 			inBatchMode = true
 			if err = json.Unmarshal(res.Result.Data, &items); err != nil {
@@ -75,12 +104,18 @@ func ReadResponse(ws *websocket.Conn) (data []byte, err error) {
 	return
 }
 
+//func Exec(req Requester) (data []byte, err error) {
+//func (req Requester) Exec() (data []byte, err error) {
 func (req *Request) Exec() (data []byte, err error) {
 	// Prepare the Data
+	//	sReq := NewStyledReq(req)
+	//	fmt.Printf("%#v\n", sReq)
+	//	message, err := json.Marshal(sReq)
 	message, err := json.Marshal(req)
 	if err != nil {
 		return
 	}
+	fmt.Println(string(message))
 	// Prepare the request message
 	var requestMessage []byte
 	mimeType := []byte("application/json")

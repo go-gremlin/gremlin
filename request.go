@@ -2,7 +2,7 @@ package gremlin
 
 import (
 	"encoding/json"
-	"fmt"
+	_ "fmt"
 	"github.com/satori/go.uuid"
 )
 
@@ -25,34 +25,33 @@ type RequestArgs struct {
 	Aliases           map[string]string `json:"aliases,omitempty"`
 }
 
-type GraphsonSerializer struct {
-}
-
-type StyledReq struct {
-	RequestId interface{}  `json:"requestId"`
+// Formats the requests in the appropriate way
+type FormattedReq struct {
 	Op        string       `json:"op"`
-	Processor string       `json:"processor"`
+	RequestId interface{}  `json:"requestId"`
 	Args      *RequestArgs `json:"args"`
+	Processor string       `json:"processor"`
 }
 
-func (s StyledReq) MarshalJSON() ([]byte, error) {
-	msg, err := json.Marshal(s)
+func GraphSONSerializer(req *Request) ([]byte, error) {
+	form := NewFormattedReq(req)
+	msg, err := json.Marshal(form)
 	if err != nil {
 		return nil, err
 	}
-	var mimeLen = []byte{0x21}
 	mimeType := []byte("application/vnd.gremlin-v2.0+json")
-	fmt.Println("hello")
+	var mimeLen = []byte{0x21}
 	res := append(mimeLen, mimeType...)
 	res = append(res, msg...)
 	return res, nil
 
 }
 
-func NewStyledReq(req *Request) StyledReq {
+func NewFormattedReq(req *Request) FormattedReq {
 	rId := map[string]string{"@type": "g:UUID", "@value": req.RequestId}
-	return StyledReq{RequestId: rId,
-		Processor: req.Processor, Op: req.Op, Args: req.Args}
+	sr := FormattedReq{RequestId: rId, Processor: req.Processor, Op: req.Op, Args: req.Args}
+
+	return sr
 }
 
 type Bind map[string]interface{}

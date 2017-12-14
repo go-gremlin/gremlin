@@ -1,13 +1,135 @@
 package gremlin
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/gorilla/websocket"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 )
+
+type Client struct {
+	Remote *url.URL
+	Ws     *websocket.Conn
+}
+
+func NewClient(urlStr string) (*Client, error) {
+	r, err := url.Parse(urlStr)
+	if err != nil {
+		return nil, err
+	}
+	conn, err := net.DialTimeout("tcp", r.Host, 1*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	// TODO rewrite with dialer since NewClient is deprecated
+	//	d := websocket.Dialer{}
+	ws, _, err := websocket.NewClient(conn, r, http.Header{}, 0, 0)
+	if err != nil {
+		return nil, err
+	}
+	return &Client{Remote: r, Ws: ws}, nil
+
+}
+
+// Client executes the provided request
+func (c *Client) ExecQuery(query string) ([]byte, error) {
+	req := Query(query)
+	return c.Exec(req)
+}
+
+func (c *Client) Exec(req *Request) ([]byte, error) {
+	requestMessage, err := GraphSONSerializer(req)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println(string(requestMessage))
+	// Open a TCP connection
+	if err = c.Ws.WriteMessage(websocket.BinaryMessage, requestMessage); err != nil {
+		print("error", err)
+		return nil, err
+	}
+	return c.ReadResponse()
+}
+
+func (c *Client) ReadResponse() (data []byte, err error) {
+	// Data buffer
+	var message []byte
+	var dataItems []json.RawMessage
+	inBatchMode := false
+	// Receive data
+	for {
+		if _, message, err = c.Ws.ReadMessage(); err != nil {
+			return
+		}
+		var res *Response
+		if err = json.Unmarshal(message, &res); err != nil {
+			return
+		}
+		var items []json.RawMessage
+		switch res.Status.Code {
+		case StatusNoContent:
+			return
+
+		case StatusAuthenticate:
+			return c.Authenticate(res.RequestId)
+		case StatusPartialContent:
+			inBatchMode = true
+			if err = json.Unmarshal(res.Result.Data, &items); err != nil {
+				return
+			}
+			dataItems = append(dataItems, items...)
+
+		case StatusSuccess:
+			if inBatchMode {
+				if err = json.Unmarshal(res.Result.Data, &items); err != nil {
+					return
+				}
+				dataItems = append(dataItems, items...)
+				data, err = json.Marshal(dataItems)
+			} else {
+				data = res.Result.Data
+			}
+			return
+
+		default:
+			fmt.Println(res)
+			if msg, exists := ErrorMsg[res.Status.Code]; exists {
+				err = errors.New(msg)
+			} else {
+				err = errors.New("An unknown error occured")
+			}
+			return
+		}
+	}
+	return
+}
+
+// Authenticates the connection
+func (c *Client) Authenticate(requestId string) ([]byte, error) {
+	user := os.Getenv("GREMLIN_USER")
+	pass := os.Getenv("GREMLIN_PASS")
+	var sasl []byte
+	sasl = append(sasl, 0)
+	sasl = append(sasl, []byte(user)...)
+	sasl = append(sasl, 0)
+	sasl = append(sasl, []byte(pass)...)
+	saslEnc := base64.StdEncoding.EncodeToString(sasl)
+	args := &RequestArgs{Sasl: saslEnc}
+	authReq := &Request{
+		RequestId: requestId,
+		Processor: "trasversal",
+		Op:        "authentication",
+		Args:      args,
+	}
+	return c.Exec(authReq)
+}
 
 var servers []*url.URL
 

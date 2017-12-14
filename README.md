@@ -59,3 +59,16 @@ You can also execute a query with Session, Transaction and Aliases
 	session := "de131c80-84c0-417f-abdf-29ad781a7d04"  //use UUID generator
 	data, err := gremlin.Query(`g.V().has("name", userName).valueMap()`).Bindings(gremlin.Bind{"userName": "john"}).Session(session).ManageTransaction(true).SetProcessor("session").Aliases(aliases).Exec()
 ```
+
+Authentication
+===
+For authentication, you can set environment variables `GREMLIN_USER` and `GREMLIN_PASS` and create a `Client`:
+
+```go
+	client, err := gremlin.NewClient("ws://remote.example.com:443/gremlin")
+	data, err = client.ExecQuery(`g.V()`)
+	if err != nil {
+		panic(err)
+	}
+	doStuffWith(data)
+```

@@ -1,15 +1,8 @@
 package gremlin
 
 import (
-	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"github.com/gorilla/websocket"
-	"github.com/satori/go.uuid"
-	"net/http"
-	"os"
-	"time"
 )
 
 type Response struct {
@@ -29,120 +22,7 @@ type ResponseResult struct {
 	Meta map[string]interface{} `json:"meta"`
 }
 
-func ReadResponse(ws *websocket.Conn) (data []byte, err error) {
-	// Data buffer
-	var message []byte
-	var dataItems []json.RawMessage
-	inBatchMode := false
-	// Receive data
-	for {
-		if _, message, err = ws.ReadMessage(); err != nil {
-			return
-		}
-		var res *Response
-		if err = json.Unmarshal(message, &res); err != nil {
-			return
-		}
-		var items []json.RawMessage
-		switch res.Status.Code {
-		case StatusNoContent:
-			return
-
-		case StatusAuthenticate:
-			user := os.Getenv("GREMLIN_USER")
-			pass := os.Getenv("GREMLIN_PASS")
-			var sasl []byte
-			sasl = append(sasl, 0)
-			sasl = append(sasl, []byte(user)...)
-			sasl = append(sasl, 0)
-			sasl = append(sasl, []byte(pass)...)
-			fmt.Println(sasl)
-			saslEnc := base64.StdEncoding.EncodeToString(sasl)
-
-			args := &RequestArgs{Sasl: saslEnc}
-			fmt.Println("hello dude!")
-			authReq := &Request{
-				RequestId: uuid.NewV4().String(),
-				Processor: "trasversal",
-				Op:        "authentication",
-				Args:      args,
-			}
-			//authData, err = Exec(sReq)
-			//authData, err = sReq.Exec()
-			var authData []byte
-			authData, err = authReq.Exec()
-			fmt.Println(authData, err)
-			return
-		case StatusPartialContent:
-			inBatchMode = true
-			if err = json.Unmarshal(res.Result.Data, &items); err != nil {
-				return
-			}
-			dataItems = append(dataItems, items...)
-
-		case StatusSuccess:
-			if inBatchMode {
-				if err = json.Unmarshal(res.Result.Data, &items); err != nil {
-					return
-				}
-				dataItems = append(dataItems, items...)
-				data, err = json.Marshal(dataItems)
-			} else {
-				data = res.Result.Data
-			}
-			return
-
-		default:
-			if msg, exists := ErrorMsg[res.Status.Code]; exists {
-				err = errors.New(msg)
-			} else {
-				err = errors.New("An unknown error occured")
-			}
-			return
-		}
-	}
-	return
-}
-
-//func Exec(req Requester) (data []byte, err error) {
-//func (req Requester) Exec() (data []byte, err error) {
-func (req *Request) Exec() (data []byte, err error) {
-	// Prepare the Data
-	//	sReq := NewStyledReq(req)
-	//	fmt.Printf("%#v\n", sReq)
-	//	message, err := json.Marshal(sReq)
-	message, err := json.Marshal(req)
-	if err != nil {
-		return
-	}
-	fmt.Println(string(message))
-	// Prepare the request message
-	var requestMessage []byte
-	mimeType := []byte("application/json")
-	mimeTypeLen := byte(len(mimeType))
-	requestMessage = append(requestMessage, mimeTypeLen)
-	requestMessage = append(requestMessage, mimeType...)
-	requestMessage = append(requestMessage, message...)
-	// Open a TCP connection
-	conn, server, err := CreateConnection()
-	if err != nil {
-		return
-	}
-	// Open a new socket connection
-	ws, _, err := websocket.NewClient(conn, server, http.Header{}, 0, len(requestMessage))
-	if err != nil {
-		return
-	}
-	defer ws.Close()
-	if err = ws.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
-		return
-	}
-	if err = ws.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
-		return
-	}
-	if err = ws.WriteMessage(websocket.BinaryMessage, requestMessage); err != nil {
-		return
-	}
-
-	return ReadResponse(ws)
+// Implementation of the stringer interface. Useful for exploration
+func (r Response) String() string {
+	return fmt.Sprintf("Response \nRequestId: %v, \nStatus: {%#v}, \nResult: {%#v}\n", r.RequestId, r.Status, r.Result)
 }

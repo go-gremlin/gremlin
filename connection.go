@@ -24,13 +24,8 @@ func NewClient(urlStr string) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	conn, err := net.DialTimeout("tcp", r.Host, 1*time.Second)
-	if err != nil {
-		return nil, err
-	}
-	// TODO rewrite with dialer since NewClient is deprecated
-	//	d := websocket.Dialer{}
-	ws, _, err := websocket.NewClient(conn, r, http.Header{}, 0, 0)
+	dialer := websocket.Dialer{}
+	ws, _, err := dialer.Dial(urlStr, http.Header{})
 	if err != nil {
 		return nil, err
 	}

@@ -62,10 +62,22 @@ You can also execute a query with Session, Transaction and Aliases
 
 Authentication
 ===
-For authentication, you can set environment variables `GREMLIN_USER` and `GREMLIN_PASS` and create a `Client`:
+For authentication, you can set environment variables `GREMLIN_USER` and `GREMLIN_PASS` and create a `Client`, passing functional parameter `OptAuthEnv`
 
 ```go
-	client, err := gremlin.NewClient("ws://remote.example.com:443/gremlin")
+	auth := gremlin.OptAuthEnv()
+	client, err := gremlin.NewClient("ws://remote.example.com:443/gremlin", auth)
+	data, err = client.ExecQuery(`g.V()`)
+	if err != nil {
+		panic(err)
+	}
+	doStuffWith(data)
+```
+
+If you don't like environment variables you can authenticate passing username and password string in the following way:
+```go
+	auth := gremlin.OptAuthUserPass("myusername", "mypass")
+	client, err := gremlin.NewClient("ws://remote.example.com:443/gremlin", auth)
 	data, err = client.ExecQuery(`g.V()`)
 	if err != nil {
 		panic(err)

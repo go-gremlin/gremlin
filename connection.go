@@ -14,12 +14,14 @@ import (
 	"time"
 )
 
+// Clients include the necessary info to connect to the server and the underlying socket
 type Client struct {
 	Remote *url.URL
 	Ws     *websocket.Conn
+	Auth   []OptAuth
 }
 
-func NewClient(urlStr string) (*Client, error) {
+func NewClient(urlStr string, options ...OptAuth) (*Client, error) {
 	r, err := url.Parse(urlStr)
 	if err != nil {
 		return nil, err
@@ -29,8 +31,7 @@ func NewClient(urlStr string) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Client{Remote: r, Ws: ws}, nil
-
+	return &Client{Remote: r, Ws: ws, Auth: options}, nil
 }
 
 // Client executes the provided request
@@ -106,15 +107,66 @@ func (c *Client) ReadResponse() (data []byte, err error) {
 	return
 }
 
+// AuthInfo includes all info related with SASL authentication with the Gremlin server
+// ChallengeId is the  requestID in the 407 status (AUTHENTICATE) response given by the server.
+// We have to send an authentication request with that same RequestID in order to solve the challenge.
+type AuthInfo struct {
+	ChallengeId string
+	User        string
+	Pass        string
+}
+
+type OptAuth func(*AuthInfo) error
+
+// Constructor for different authentication possibilities
+func NewAuthInfo(options ...OptAuth) (*AuthInfo, error) {
+	auth := &AuthInfo{}
+	for _, op := range options {
+		err := op(auth)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return auth, nil
+}
+
+// Sets authentication info from environment variables GREMLIN_USER and GREMLIN_PASS
+func OptAuthEnv() OptAuth {
+	return func(auth *AuthInfo) error {
+		user, ok := os.LookupEnv("GREMLIN_USER")
+		if !ok {
+			return errors.New("Variable GREMLIN_USER is not set")
+		}
+		pass, ok := os.LookupEnv("GREMLIN_PASS")
+		if !ok {
+			return errors.New("Variable GREMLIN_PASS is not set")
+		}
+		auth.User = user
+		auth.Pass = pass
+		return nil
+	}
+}
+
+// Sets authentication information from username and password
+func OptAuthUserPass(user, pass string) OptAuth {
+	return func(auth *AuthInfo) error {
+		auth.User = user
+		auth.Pass = pass
+		return nil
+	}
+}
+
 // Authenticates the connection
 func (c *Client) Authenticate(requestId string) ([]byte, error) {
-	user := os.Getenv("GREMLIN_USER")
-	pass := os.Getenv("GREMLIN_PASS")
+	auth, err := NewAuthInfo(c.Auth...)
+	if err != nil {
+		return nil, err
+	}
 	var sasl []byte
 	sasl = append(sasl, 0)
-	sasl = append(sasl, []byte(user)...)
+	sasl = append(sasl, []byte(auth.User)...)
 	sasl = append(sasl, 0)
-	sasl = append(sasl, []byte(pass)...)
+	sasl = append(sasl, []byte(auth.Pass)...)
 	saslEnc := base64.StdEncoding.EncodeToString(sasl)
 	args := &RequestArgs{Sasl: saslEnc}
 	authReq := &Request{

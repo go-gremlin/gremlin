@@ -1,6 +1,8 @@
 package gremlin
 
 import (
+	"encoding/json"
+	_ "fmt"
 	"github.com/satori/go.uuid"
 )
 
@@ -17,10 +19,39 @@ type RequestArgs struct {
 	Bindings          Bind              `json:"bindings,omitempty"`
 	Language          string            `json:"language,omitempty"`
 	Rebindings        Bind              `json:"rebindings,omitempty"`
-	Sasl              []byte            `json:"sasl,omitempty"`
+	Sasl              string            `json:"sasl,omitempty"`
 	BatchSize         int               `json:"batchSize,omitempty"`
 	ManageTransaction bool              `json:"manageTransaction,omitempty"`
 	Aliases           map[string]string `json:"aliases,omitempty"`
+}
+
+// Formats the requests in the appropriate way
+type FormattedReq struct {
+	Op        string       `json:"op"`
+	RequestId interface{}  `json:"requestId"`
+	Args      *RequestArgs `json:"args"`
+	Processor string       `json:"processor"`
+}
+
+func GraphSONSerializer(req *Request) ([]byte, error) {
+	form := NewFormattedReq(req)
+	msg, err := json.Marshal(form)
+	if err != nil {
+		return nil, err
+	}
+	mimeType := []byte("application/vnd.gremlin-v2.0+json")
+	var mimeLen = []byte{0x21}
+	res := append(mimeLen, mimeType...)
+	res = append(res, msg...)
+	return res, nil
+
+}
+
+func NewFormattedReq(req *Request) FormattedReq {
+	rId := map[string]string{"@type": "g:UUID", "@value": req.RequestId}
+	sr := FormattedReq{RequestId: rId, Processor: req.Processor, Op: req.Op, Args: req.Args}
+
+	return sr
 }
 
 type Bind map[string]interface{}

@@ -4,14 +4,14 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"github.com/gorilla/websocket"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 // Clients include the necessary info to connect to the server and the underlying socket
@@ -45,7 +45,7 @@ func (c *Client) Exec(req *Request) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(string(requestMessage))
+
 	// Open a TCP connection
 	if err = c.Ws.WriteMessage(websocket.BinaryMessage, requestMessage); err != nil {
 		print("error", err)
@@ -95,7 +95,6 @@ func (c *Client) ReadResponse() (data []byte, err error) {
 			return
 
 		default:
-			fmt.Println(res)
 			if msg, exists := ErrorMsg[res.Status.Code]; exists {
 				err = errors.New(msg)
 			} else {

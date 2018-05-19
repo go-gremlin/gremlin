@@ -61,7 +61,7 @@ func Query(query string) *Request {
 		Gremlin:  query,
 		Language: "gremlin-groovy",
 	}
-	u, _ := uuid.NewV4()
+	u := uuid.NewV4()
 	uuidString := u.String()
 	req := &Request{
 		RequestId: uuidString,

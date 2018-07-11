@@ -25,7 +25,6 @@ func NewClient(urlStr string, origin string, options ...OptAuth) (*Client, error
 	if err != nil {
 		return nil, err
 	}
-	dialer := websocket.Dialer{}
 	ws, err := websocket.Dial(url, "", origin)
 	if err != nil {
 		return nil, err

@@ -3,7 +3,8 @@ package gremlin
 import (
 	"encoding/json"
 	_ "fmt"
-	"github.com/satori/go.uuid"
+
+	"github.com/gofrs/uuid"
 )
 
 type Request struct {
@@ -41,7 +42,8 @@ func GraphSONSerializer(req *Request) ([]byte, error) {
 	}
 	mimeType := []byte("application/vnd.gremlin-v2.0+json")
 	var mimeLen = []byte{0x21}
-	res := append(mimeLen, mimeType...)
+	var res []byte
+	res = append(mimeLen, mimeType...)
 	res = append(res, msg...)
 	return res, nil
 

@@ -8,51 +8,143 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/net/websocket"
 )
 
 // Clients include the necessary info to connect to the server and the underlying socket
-type Client struct {
-	Remote *url.URL
-	Ws     *websocket.Conn
-	Auth   []OptAuth
+type Pool struct {
+	urlStr         string
+	origin         string
+	ws             *websocket.Conn
+	MaxConnections int
+	Auth           []OptAuth
+	Connections    map[int]Connection
+	m              sync.Mutex
+	cond           *sync.Cond
 }
 
-func NewClient(urlStr string, origin string, options ...OptAuth) (*Client, error) {
-	r, err := url.Parse(urlStr)
-	if err != nil {
-		return nil, err
-	}
+type Connection struct {
+	id   int
+	ws   *websocket.Conn
+	busy bool
+	pool *Pool
+}
+
+func NewClient(urlStr string, origin string, maxConn int, options ...OptAuth) (*Pool, error) {
 	ws, err := websocket.Dial(urlStr, "", origin)
 	if err != nil {
 		return nil, err
 	}
-	return &Client{Remote: r, Ws: ws, Auth: options}, nil
+	pool := &Pool{
+		urlStr:         urlStr,
+		origin:         origin,
+		ws:             ws,
+		Auth:           options,
+		MaxConnections: maxConn,
+		Connections:    make(map[int]Connection),
+		m:              sync.Mutex{},
+	}
+	// Create one connection on the pool create to check if connections work at all and increase pool start time
+	conn := Connection{
+		ws:   ws,
+		busy: false,
+		pool: pool,
+	}
+	pool.Connections[0] = conn
+	return pool, nil
 }
 
-// Client executes the provided request
-func (c *Client) ExecQuery(query string) ([]byte, error) {
+func (p *Pool) createSocket() (*websocket.Conn, error) {
+	ws, err := websocket.Dial(p.urlStr, "", p.origin)
+	if err != nil {
+		return nil, err
+	}
+	return ws, nil
+}
+
+func (p *Pool) Get() (*Connection, error) {
+	for {
+		p.m.Lock()
+		// If there are available connection
+		for _, conn := range p.Connections {
+			if !conn.busy {
+				conn.busy = true
+				p.m.Unlock()
+				return &conn, nil
+			}
+		}
+		// In case all connection in use - create new one
+		if len(p.Connections) < p.MaxConnections {
+			newConnId := len(p.Connections)
+			ws, err := p.createSocket()
+			if err != nil {
+				p.m.Unlock()
+				return nil, err
+			}
+			conn := Connection{
+				id:   newConnId,
+				ws:   ws,
+				pool: p,
+			}
+			p.Connections[newConnId] = conn
+			p.m.Unlock()
+			return &conn, nil
+		}
+		// Unlock the mutex and wait until someone will Put connection and use mutex
+		p.m.Unlock()
+		if p.cond == nil {
+			p.cond = sync.NewCond(&p.m)
+		}
+		p.cond.Wait()
+	}
+	return nil, nil
+}
+
+// Put - put used connection back to poll and get positive status if it's gone well
+func (p *Pool) Put(connId int) bool {
+	p.m.Lock()
+	defer p.m.Unlock()
+	for id, conn := range p.Connections {
+		if id == connId {
+			conn.busy = false
+			return true
+		}
+	}
+	return false
+}
+
+func (p *Pool) ExecQuery(query string) ([]byte, error) {
 	req := Query(query)
-	return c.Exec(req)
+	return p.Exec(req)
 }
 
-func (c *Client) Exec(req *Request) ([]byte, error) {
+func (p *Pool) Exec(req *Request) ([]byte, error) {
+	conn, err := p.Get()
+
+	if err != nil {
+		return nil, err
+	}
 	requestMessage, err := GraphSONSerializer(req)
 	if err != nil {
 		return nil, err
 	}
 
 	// Open a TCP connection
-	if err := websocket.Message.Send(c.Ws, requestMessage); err != nil {
-		print("error", err)
+	if err := websocket.Message.Send(conn.ws, requestMessage); err != nil {
 		return nil, err
 	}
-	return c.ReadResponse()
+
+	data, err := conn.ReadResponse()
+	if !p.Put(conn.id) {
+		return nil, errors.New("Put connection back failed")
+	}
+	return data, err
 }
 
-func (c *Client) ReadResponse() (data []byte, err error) {
+func (c *Connection) ReadResponse() (data []byte, err error) {
 	// Data buffer
 	var dataItems []json.RawMessage
 	inBatchMode := false
@@ -60,7 +152,7 @@ func (c *Client) ReadResponse() (data []byte, err error) {
 	for {
 		var res *Response
 
-		if err = websocket.JSON.Receive(c.Ws, &res); err != nil {
+		if err = websocket.JSON.Receive(c.ws, &res); err != nil {
 			return nil, err
 		}
 
@@ -70,7 +162,7 @@ func (c *Client) ReadResponse() (data []byte, err error) {
 			return
 
 		case StatusAuthenticate:
-			return c.Authenticate(res.RequestId)
+			return c.pool.Authenticate(res.RequestId)
 		case StatusPartialContent:
 			inBatchMode = true
 			if err = json.Unmarshal(res.Result.Data, &items); err != nil {
@@ -100,6 +192,28 @@ func (c *Client) ReadResponse() (data []byte, err error) {
 		}
 	}
 	return
+}
+
+// Authenticates the connection
+func (p *Pool) Authenticate(requestId string) ([]byte, error) {
+	auth, err := NewAuthInfo(p.Auth...)
+	if err != nil {
+		return nil, err
+	}
+	var sasl []byte
+	sasl = append(sasl, 0)
+	sasl = append(sasl, []byte(auth.User)...)
+	sasl = append(sasl, 0)
+	sasl = append(sasl, []byte(auth.Pass)...)
+	saslEnc := base64.StdEncoding.EncodeToString(sasl)
+	args := &RequestArgs{Sasl: saslEnc}
+	authReq := &Request{
+		RequestId: requestId,
+		Processor: "trasversal",
+		Op:        "authentication",
+		Args:      args,
+	}
+	return p.Exec(authReq)
 }
 
 // AuthInfo includes all info related with SASL authentication with the Gremlin server
@@ -149,28 +263,6 @@ func OptAuthUserPass(user, pass string) OptAuth {
 		auth.Pass = pass
 		return nil
 	}
-}
-
-// Authenticates the connection
-func (c *Client) Authenticate(requestId string) ([]byte, error) {
-	auth, err := NewAuthInfo(c.Auth...)
-	if err != nil {
-		return nil, err
-	}
-	var sasl []byte
-	sasl = append(sasl, 0)
-	sasl = append(sasl, []byte(auth.User)...)
-	sasl = append(sasl, 0)
-	sasl = append(sasl, []byte(auth.Pass)...)
-	saslEnc := base64.StdEncoding.EncodeToString(sasl)
-	args := &RequestArgs{Sasl: saslEnc}
-	authReq := &Request{
-		RequestId: requestId,
-		Processor: "trasversal",
-		Op:        "authentication",
-		Args:      args,
-	}
-	return c.Exec(authReq)
 }
 
 var servers []*url.URL

@@ -21,9 +21,11 @@ type Pool struct {
 	ws             *websocket.Conn
 	MaxConnections int
 	Auth           []OptAuth
-	Connections    map[int]Connection
+	Connections    map[int]*Connection
+	active         int
 	m              sync.Mutex
 	cond           *sync.Cond
+	maxBlocker     chan int
 }
 
 type Connection struct {
@@ -44,16 +46,11 @@ func NewClient(urlStr string, origin string, maxConn int, options ...OptAuth) (*
 		ws:             ws,
 		Auth:           options,
 		MaxConnections: maxConn,
-		Connections:    make(map[int]Connection),
+		Connections:    make(map[int]*Connection),
 		m:              sync.Mutex{},
+		active:         0,
+		maxBlocker:     make(chan int),
 	}
-	// Create one connection on the pool create to check if connections work at all and increase pool start time
-	conn := Connection{
-		ws:   ws,
-		busy: false,
-		pool: pool,
-	}
-	pool.Connections[0] = conn
 	return pool, nil
 }
 
@@ -69,11 +66,13 @@ func (p *Pool) Get() (*Connection, error) {
 	for {
 		p.m.Lock()
 		// If there are available connection
-		for _, conn := range p.Connections {
-			if !conn.busy {
-				conn.busy = true
+		for i, _ := range p.Connections {
+			if !p.Connections[i].busy {
+				// TBD: find how to check the connection for being still valid
+				p.Connections[i].busy = true
+				p.active++
 				p.m.Unlock()
-				return &conn, nil
+				return p.Connections[i], nil
 			}
 		}
 		// In case all connection in use - create new one
@@ -88,17 +87,16 @@ func (p *Pool) Get() (*Connection, error) {
 				id:   newConnId,
 				ws:   ws,
 				pool: p,
+				busy: true,
 			}
-			p.Connections[newConnId] = conn
+			p.Connections[newConnId] = &conn
+			p.active++
 			p.m.Unlock()
 			return &conn, nil
 		}
-		// Unlock the mutex and wait until someone will Put connection and use mutex
 		p.m.Unlock()
-		if p.cond == nil {
-			p.cond = sync.NewCond(&p.m)
-		}
-		p.cond.Wait()
+		// Pushing data to `maxBlocker` chan means that it's more concurrent clients than connections and next connection will be taken from already created, so this chan will be unbloked when someone will put back some connnection
+		p.maxBlocker <- 1
 	}
 	return nil, nil
 }
@@ -106,13 +104,19 @@ func (p *Pool) Get() (*Connection, error) {
 // Put - put used connection back to poll and get positive status if it's gone well
 func (p *Pool) Put(connId int) bool {
 	p.m.Lock()
-	defer p.m.Unlock()
-	for id, conn := range p.Connections {
+	for id, _ := range p.Connections {
 		if id == connId {
-			conn.busy = false
+			p.Connections[id].busy = false
+			if p.active == p.MaxConnections {
+				// This moment is controversial. Here we unblock `maxBlocker` in case someone wait because maximum amount of connections limit exceed so for the next cycle caller has to wait until mutex will be unblocked. It means once that will be that much callers to take all possible connections, one connection, the last one taken after using will be pending here until someone will exceed limit again and will be blocked my mutex. This connection has no difference from others and beghave like all others
+				<-p.maxBlocker
+			}
+			p.active--
+			p.m.Unlock()
 			return true
 		}
 	}
+	p.m.Unlock()
 	return false
 }
 
@@ -123,7 +127,6 @@ func (p *Pool) ExecQuery(query string) ([]byte, error) {
 
 func (p *Pool) Exec(req *Request) ([]byte, error) {
 	conn, err := p.Get()
-
 	if err != nil {
 		return nil, err
 	}
@@ -131,16 +134,14 @@ func (p *Pool) Exec(req *Request) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	// Open a TCP connection
 	if err := websocket.Message.Send(conn.ws, requestMessage); err != nil {
 		return nil, err
 	}
 
 	data, err := conn.ReadResponse()
-	if !p.Put(conn.id) {
-		return nil, errors.New("Put connection back failed")
-	}
+	// Put connection back concurrently because caller doesn't have to wait
+	go p.Put(conn.id)
 	return data, err
 }
 

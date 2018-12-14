@@ -116,8 +116,7 @@ func (p *Pool) Put(connId int) bool {
 			return true
 		}
 	}
-	p.m.Unlock()
-	return false
+	panic("Connection with given id was not created by pool or was modificated by client")
 }
 
 func (p *Pool) ExecQuery(query string) ([]byte, error) {

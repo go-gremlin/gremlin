@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -16,9 +17,10 @@ import (
 
 // Clients include the necessary info to connect to the server and the underlying socket
 type Client struct {
-	Remote *url.URL
-	Ws     *websocket.Conn
-	Auth   []OptAuth
+	Remote         *url.URL
+	Ws             *websocket.Conn
+	Auth           []OptAuth
+	VerboseLogging bool
 }
 
 func NewClient(urlStr string, options ...OptAuth) (*Client, error) {
@@ -32,6 +34,19 @@ func NewClient(urlStr string, options ...OptAuth) (*Client, error) {
 		return nil, err
 	}
 	return &Client{Remote: r, Ws: ws, Auth: options}, nil
+}
+
+func NewVerboseClient(urlStr string, verboseLogging bool, options ...OptAuth) (*Client, error) {
+	client, err := NewClient(urlStr, options...)
+	if err != nil {
+		return nil, err
+	}
+	client.SetLogVerbosity(verboseLogging)
+	return client, nil
+}
+
+func (c *Client) SetLogVerbosity(verboseLogging bool) {
+	c.VerboseLogging = verboseLogging
 }
 
 // Client executes the provided request
@@ -95,10 +110,14 @@ func (c *Client) ReadResponse() (data []byte, err error) {
 			return
 
 		default:
-			if msg, exists := ErrorMsg[res.Status.Code]; exists {
+			msg, exists := ErrorMsg[res.Status.Code]
+
+			if !exists {
+				err = errors.New("An unknown error occured")
+			} else if !c.VerboseLogging {
 				err = errors.New(msg)
 			} else {
-				err = errors.New("An unknown error occured")
+				err = errors.New(fmt.Sprintf("%d error: %s. See additional details below:\nMessage: %s\nResult Data: %v", res.Status.Code, msg, res.Status.Message, res.Result.Data))
 			}
 			return
 		}

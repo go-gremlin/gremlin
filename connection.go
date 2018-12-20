@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"golang.org/x/net/websocket"
@@ -18,15 +17,13 @@ import (
 type Pool struct {
 	urlStr         string
 	origin         string
-	ws             *websocket.Conn
 	MaxConnections int
 	Auth           []OptAuth
-	Connections    map[int]*Connection
-	active         int
-	m              sync.Mutex
-	cond           *sync.Cond
-	maxBlocker     chan int
+	// Connections    map[int]*Connection
+	Connections chan Connection
 }
+
+const TheBigestMaxGremlinConnectionsLimit = 5
 
 type Connection struct {
 	id   int
@@ -36,20 +33,34 @@ type Connection struct {
 }
 
 func NewClient(urlStr string, origin string, maxConn int, options ...OptAuth) (*Pool, error) {
-	ws, err := websocket.Dial(urlStr, "", origin)
+	// Check if connection is possible
+	_, err := websocket.Dial(urlStr, "", origin)
 	if err != nil {
 		return nil, err
 	}
 	pool := &Pool{
-		urlStr:         urlStr,
-		origin:         origin,
-		ws:             ws,
-		Auth:           options,
-		MaxConnections: maxConn,
-		Connections:    make(map[int]*Connection),
-		m:              sync.Mutex{},
-		active:         0,
-		maxBlocker:     make(chan int),
+		urlStr: urlStr,
+		origin: origin,
+		Auth:   options,
+	}
+	// Can make maxConn as an optional since we already have optional arguments here
+	if maxConn > 0 {
+		pool.MaxConnections = maxConn
+	} else {
+		pool.MaxConnections = TheBigestMaxGremlinConnectionsLimit
+	}
+	pool.Connections = make(chan Connection, pool.MaxConnections)
+	for i := 0; i < pool.MaxConnections; i++ {
+		ws, err := pool.createSocket()
+		if err != nil {
+			return nil, err
+		}
+		conn := Connection{
+			id:   i,
+			ws:   ws,
+			pool: pool,
+		}
+		pool.Connections <- conn
 	}
 	return pool, nil
 }
@@ -62,61 +73,13 @@ func (p *Pool) createSocket() (*websocket.Conn, error) {
 	return ws, nil
 }
 
-func (p *Pool) Get() (*Connection, error) {
-	for {
-		p.m.Lock()
-		// If there are available connection
-		for i, _ := range p.Connections {
-			if !p.Connections[i].busy {
-				// TBD: find how to check the connection for being still valid
-				p.Connections[i].busy = true
-				p.active++
-				p.m.Unlock()
-				return p.Connections[i], nil
-			}
-		}
-		// In case all connection in use - create new one
-		if len(p.Connections) < p.MaxConnections {
-			newConnId := len(p.Connections)
-			ws, err := p.createSocket()
-			if err != nil {
-				p.m.Unlock()
-				return nil, err
-			}
-			conn := Connection{
-				id:   newConnId,
-				ws:   ws,
-				pool: p,
-				busy: true,
-			}
-			p.Connections[newConnId] = &conn
-			p.active++
-			p.m.Unlock()
-			return &conn, nil
-		}
-		p.m.Unlock()
-		// Pushing data to `maxBlocker` chan means that it's more concurrent clients than connections and next connection will be taken from already created, so this chan will be unbloked when someone will put back some connnection
-		p.maxBlocker <- 1
-	}
-	return nil, nil
+func (p *Pool) Get() (Connection, error) {
+	return <-p.Connections, nil
 }
 
 // Put - put used connection back to poll and get positive status if it's gone well
-func (p *Pool) Put(connId int) bool {
-	p.m.Lock()
-	for id, _ := range p.Connections {
-		if id == connId {
-			p.Connections[id].busy = false
-			if p.active == p.MaxConnections {
-				// This moment is controversial. Here we unblock `maxBlocker` in case someone wait because maximum amount of connections limit exceed so for the next cycle caller has to wait until mutex will be unblocked. It means once that will be that much callers to take all possible connections, one connection, the last one taken after using will be pending here until someone will exceed limit again and will be blocked my mutex. This connection has no difference from others and beghave like all others
-				<-p.maxBlocker
-			}
-			p.active--
-			p.m.Unlock()
-			return true
-		}
-	}
-	panic("Connection with given id was not created by pool or was modificated by client")
+func (p *Pool) Put(conn Connection) {
+	p.Connections <- conn
 }
 
 func (p *Pool) ExecQuery(query string) ([]byte, error) {
@@ -139,8 +102,7 @@ func (p *Pool) Exec(req *Request) ([]byte, error) {
 	}
 
 	data, err := conn.ReadResponse()
-	// Put connection back concurrently because caller doesn't have to wait
-	go p.Put(conn.id)
+	p.Put(conn)
 	return data, err
 }
 
@@ -194,28 +156,6 @@ func (c *Connection) ReadResponse() (data []byte, err error) {
 	return
 }
 
-// Authenticates the connection
-func (p *Pool) Authenticate(requestId string) ([]byte, error) {
-	auth, err := NewAuthInfo(p.Auth...)
-	if err != nil {
-		return nil, err
-	}
-	var sasl []byte
-	sasl = append(sasl, 0)
-	sasl = append(sasl, []byte(auth.User)...)
-	sasl = append(sasl, 0)
-	sasl = append(sasl, []byte(auth.Pass)...)
-	saslEnc := base64.StdEncoding.EncodeToString(sasl)
-	args := &RequestArgs{Sasl: saslEnc}
-	authReq := &Request{
-		RequestId: requestId,
-		Processor: "trasversal",
-		Op:        "authentication",
-		Args:      args,
-	}
-	return p.Exec(authReq)
-}
-
 // AuthInfo includes all info related with SASL authentication with the Gremlin server
 // ChallengeId is the  requestID in the 407 status (AUTHENTICATE) response given by the server.
 // We have to send an authentication request with that same RequestID in order to solve the challenge.
@@ -263,6 +203,28 @@ func OptAuthUserPass(user, pass string) OptAuth {
 		auth.Pass = pass
 		return nil
 	}
+}
+
+// Authenticates the connection
+func (p *Pool) Authenticate(requestId string) ([]byte, error) {
+	auth, err := NewAuthInfo(p.Auth...)
+	if err != nil {
+		return nil, err
+	}
+	var sasl []byte
+	sasl = append(sasl, 0)
+	sasl = append(sasl, []byte(auth.User)...)
+	sasl = append(sasl, 0)
+	sasl = append(sasl, []byte(auth.Pass)...)
+	saslEnc := base64.StdEncoding.EncodeToString(sasl)
+	args := &RequestArgs{Sasl: saslEnc}
+	authReq := &Request{
+		RequestId: requestId,
+		Processor: "trasversal",
+		Op:        "authentication",
+		Args:      args,
+	}
+	return p.Exec(authReq)
 }
 
 var servers []*url.URL

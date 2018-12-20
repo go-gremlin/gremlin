@@ -32,7 +32,7 @@ type Connection struct {
 	pool *Pool
 }
 
-func NewClient(urlStr string, origin string, maxConn int, options ...OptAuth) (*Pool, error) {
+func NewClient(urlStr string, origin string, maxConn []int, options ...OptAuth) (*Pool, error) {
 	// Check if connection is possible
 	_, err := websocket.Dial(urlStr, "", origin)
 	if err != nil {
@@ -44,8 +44,8 @@ func NewClient(urlStr string, origin string, maxConn int, options ...OptAuth) (*
 		Auth:   options,
 	}
 	// Can make maxConn as an optional since we already have optional arguments here
-	if maxConn > 0 {
-		pool.MaxConnections = maxConn
+	if len(maxConn) > 0 {
+		pool.MaxConnections = maxConn[0]
 	} else {
 		pool.MaxConnections = TheBigestMaxGremlinConnectionsLimit
 	}

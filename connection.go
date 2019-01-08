@@ -117,7 +117,7 @@ func (c *Client) ReadResponse() (data []byte, err error) {
 			} else if !c.VerboseLogging {
 				err = errors.New(msg)
 			} else {
-				err = errors.New(fmt.Sprintf("%d error: %s. See additional details below:\nMessage: %s\nResult Data: %v", res.Status.Code, msg, res.Status.Message, res.Result.Data))
+				err = errors.New(fmt.Sprintf("%d error: %s. See additional details below:\nMessage: %s", res.Status.Code, msg, res.Status.Message))
 			}
 			return
 		}

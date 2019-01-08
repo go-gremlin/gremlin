@@ -15,6 +15,14 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// GoGremlin is an interface based on the go-gremlin *Client
+type GoGremlin interface {
+	ExecQuery(query string) ([]byte, error)
+	Close() error
+	Reconnect(urlStr string) error
+	MaintainConnection(urlStr string) error
+}
+
 // Clients include the necessary info to connect to the server and the underlying socket
 type Client struct {
 	Remote         *url.URL
@@ -194,6 +202,39 @@ func (c *Client) Authenticate(requestId string) ([]byte, error) {
 		Args:      args,
 	}
 	return c.Exec(authReq)
+}
+
+func (c *Client) Reconnect(urlStr string) error {
+	dialer := websocket.Dialer{}
+	ws, _, err := dialer.Dial(urlStr, http.Header{})
+	c.Ws = ws
+	return err
+}
+
+func (c *Client) Close() error {
+	return c.Ws.Close()
+}
+
+// Send a dummy query to neptune
+// If there is a network error, attempt to reconnect
+func (c *Client) MaintainConnection(urlStr string) error {
+	simpleQuery := `g.V().limit(0)`
+
+	_, err := c.ExecQuery(simpleQuery)
+	if err == nil {
+		return nil
+	}
+
+	_, isNetErr := err.(*net.OpError) // check if err is a network error
+	if err != nil && !isNetErr {      // if it's not network error, so something else went wrong, no point in retrying
+		return err
+	}
+	// if it is a network error, attempt to reconnect
+	err = c.Reconnect(urlStr)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 var servers []*url.URL

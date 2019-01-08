@@ -6,6 +6,10 @@ import (
 	"time"
 )
 
+type Logger interface {
+	Log(keyvals ...interface{}) error
+}
+
 type GremlinLogger struct {
 	next   Gremlin_i
 	logger Logger
@@ -22,9 +26,9 @@ func (g GremlinLogger) ExecQueryF(ctx context.Context, query string, args ...int
 	method := CoalesceStrings(OpNameFromContext(ctx), "Gremlin.ExecQueryF")
 	defer func(begin time.Time) {
 		if err != nil {
-			g.logger.Error("message", fmt.Sprintf("%s completed in %v with error: %v, with query: %s", method, time.Since(begin), err, fmt.Sprintf(query, args...)))
+			g.logger.Log("level", "error", "message", fmt.Sprintf("%s completed in %v with error: %v, with query: %s", method, time.Since(begin), err, fmt.Sprintf(query, args...)))
 		} else {
-			g.logger.Debug("message", fmt.Sprintf("%s completed in %v with query: %s", method, time.Since(begin), fmt.Sprintf(query, args...)))
+			g.logger.Log("level", "debug", "message", fmt.Sprintf("%s completed in %v with query: %s", method, time.Since(begin), fmt.Sprintf(query, args...)))
 		}
 	}(time.Now())
 	return g.next.ExecQueryF(ctx, query, args...)
@@ -34,9 +38,9 @@ func (g GremlinLogger) PingDatabase(ctx context.Context) (err error) {
 	method := CoalesceStrings(OpNameFromContext(ctx), "Gremlin.PingDatabase")
 	defer func(begin time.Time) {
 		if err != nil {
-			g.logger.Error("message", fmt.Sprintf("%s completed in %v with error: %v", method, time.Since(begin), err))
+			g.logger.Log("level", "error", fmt.Sprintf("%s completed in %v with error: %v", method, time.Since(begin), err))
 		} else {
-			g.logger.Debug("message", fmt.Sprintf("%s completed in %v.", method, time.Since(begin)))
+			g.logger.Log("level", "debug", "message", fmt.Sprintf("%s completed in %v.", method, time.Since(begin)))
 		}
 	}(time.Now())
 	return g.next.PingDatabase(ctx)

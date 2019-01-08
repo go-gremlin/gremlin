@@ -2,12 +2,77 @@
 
 
 [[projects]]
+  digest = "1:7a9ec7057a8edf167ac88104441d5cdfe37b9639bdbe8f6f95078275c4545999"
+  name = "github.com/cbinsights/go-service-utils"
+  packages = [
+    "log",
+    "utils",
+  ]
+  pruneopts = "UT"
+  revision = "de305b3af773cc33be84c4d49e9cc6aa9aa31e08"
+  version = "v1.4.1"
+
+[[projects]]
+  digest = "1:a6475803bcfec589e6bebc62b7326653102dda3926c37ee1e491f6574c9ea088"
+  name = "github.com/go-kit/kit"
+  packages = [
+    "log",
+    "log/term",
+  ]
+  pruneopts = "UT"
+  revision = "ca4112baa34cb55091301bdc13b1420a122b1b9e"
+  version = "v0.7.0"
+
+[[projects]]
+  digest = "1:4062bc6de62d73e2be342243cf138cf499b34d558876db8d9430e2149388a4d8"
+  name = "github.com/go-logfmt/logfmt"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "07c9b44f60d7ffdfb7d8efe1ad539965737836dc"
+  version = "v0.4.0"
+
+[[projects]]
+  digest = "1:586ea76dbd0374d6fb649a91d70d652b7fe0ccffb8910a77468e7702e7901f3d"
+  name = "github.com/go-stack/stack"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "2fee6af1a9795aafbe0253a0cfbdf668e1fb8a9a"
+  version = "v1.8.0"
+
+[[projects]]
   digest = "1:912c41396888a5e965d9d3fd29892f2931e193d755bdb6199b8d760d2758f565"
   name = "github.com/gorilla/websocket"
   packages = ["."]
   pruneopts = "UT"
   revision = "3ab3a8b8831546bd18fd182c20687ca853b2bb13"
   version = "v1.1.0"
+
+[[projects]]
+  branch = "master"
+  digest = "1:a64e323dc06b73892e5bb5d040ced475c4645d456038333883f58934abbf6f72"
+  name = "github.com/kr/logfmt"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "b84e30acd515aadc4b783ad4ff83aff3299bdfe0"
+
+[[projects]]
+  digest = "1:6ff1026b8d873d074ddec82ad60bb0eb537dc013f456ef26b63d30beba2f99e7"
+  name = "github.com/microcosm-cc/bluemonday"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "506f3da9b7c86d737e91f16b7431df8635871552"
+  version = "v1.0.2"
+
+[[projects]]
+  digest = "1:9d7b1f07e44cada28e6160cb0a808ad2f71f32bd7114793fb0baa302db0e6229"
+  name = "github.com/opentracing/opentracing-go"
+  packages = [
+    ".",
+    "log",
+  ]
+  pruneopts = "UT"
+  revision = "1949ddbfd147afd4d964a9f00b24eb291e0e7c38"
+  version = "v1.0.2"
 
 [[projects]]
   digest = "1:34a99dd0852c5c9c16e9b86884e9e0cb3e4a7a01df4dea7913f85ea7fb786bbe"
@@ -17,11 +82,25 @@
   revision = "879c5887cd475cd7864858769793b2ceb0d44feb"
   version = "v1.1.0"
 
+[[projects]]
+  branch = "master"
+  digest = "1:17847c677cb69303e0b8606b690f400c53485620a98d288aee1a215235118fcb"
+  name = "golang.org/x/net"
+  packages = [
+    "context",
+    "html",
+    "html/atom",
+  ]
+  pruneopts = "UT"
+  revision = "395948e2f546cb82afa9e1f6d1a6e87849b9af1d"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/cbinsights/go-service-utils/utils",
     "github.com/gorilla/websocket",
+    "github.com/opentracing/opentracing-go",
     "github.com/satori/go.uuid",
   ]
   solver-name = "gps-cdcl"

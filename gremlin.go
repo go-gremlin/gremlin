@@ -3,6 +3,8 @@ package gremlin
 import (
 	"context"
 	"encoding/json"
+
+	"github.com/opentracing/opentracing-go"
 )
 
 type Gremlin_i interface {
@@ -10,7 +12,19 @@ type Gremlin_i interface {
 	PingDatabase(ctx context.Context) (err error)
 }
 
-func NewGremlinStack(urlStr string, maxCap int, verboseLogging bool, logger Logger, options ...OptAuth) (Gremlin_i, error) {
+func NewGremlinStackSimple(urlStr string, maxCap int, verboseLogging bool, options ...OptAuth) (Gremlin_i, error) {
+	var (
+		err error
+		g   Gremlin_i
+	)
+	g, err = NewGremlinClient(urlStr, maxCap, verboseLogging, options...)
+	if err != nil {
+		return nil, err
+	}
+	return g, nil
+}
+
+func NewGremlinStack(urlStr string, maxCap int, verboseLogging bool, logger Logger, tracer opentracing.Tracer, instr InstrumentationProvider_i, options ...OptAuth) (Gremlin_i, error) {
 	var (
 		err error
 		g   Gremlin_i
@@ -21,6 +35,8 @@ func NewGremlinStack(urlStr string, maxCap int, verboseLogging bool, logger Logg
 	}
 
 	g = NewGremlinLogger(g, logger)
+	g = NewGremlinTracer(g, tracer)
+	g = NewGremlinInstr(g, instr)
 	return g, nil
 }
 

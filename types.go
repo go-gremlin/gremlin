@@ -1,13 +1,5 @@
 package gremlin
 
-type Logger interface {
-	Log(keyvals ...interface{}) error
-	Debug(keyvals ...interface{}) error
-	Info(keyvals ...interface{}) error
-	Warn(keyvals ...interface{}) error
-	Error(keyvals ...interface{}) error
-}
-
 // cbi made up, not a real graphson or gremlin thing
 type GremlinResponse struct {
 	V Vertexes

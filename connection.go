@@ -15,7 +15,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// GoGremlin is an interface based on the go-gremlin *Client
 type GoGremlin interface {
 	ExecQuery(query string) ([]byte, error)
 	Close() error
@@ -23,15 +22,15 @@ type GoGremlin interface {
 	MaintainConnection(urlStr string) error
 }
 
-// Clients include the necessary info to connect to the server and the underlying socket
-type Client struct {
+// GremlinConnections include the necessary info to connect to the server and the underlying socket
+type GremlinConnection struct {
 	Remote         *url.URL
 	Ws             *websocket.Conn
 	Auth           []OptAuth
 	VerboseLogging bool
 }
 
-func NewClient(urlStr string, options ...OptAuth) (*Client, error) {
+func NewGremlinConnection(urlStr string, options ...OptAuth) (*GremlinConnection, error) {
 	r, err := url.Parse(urlStr)
 	if err != nil {
 		return nil, err
@@ -41,29 +40,29 @@ func NewClient(urlStr string, options ...OptAuth) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Client{Remote: r, Ws: ws, Auth: options}, nil
+	return &GremlinConnection{Remote: r, Ws: ws, Auth: options}, nil
 }
 
-func NewVerboseClient(urlStr string, verboseLogging bool, options ...OptAuth) (*Client, error) {
-	client, err := NewClient(urlStr, options...)
+func NewVerboseGremlinConnection(urlStr string, verboseLogging bool, options ...OptAuth) (*GremlinConnection, error) {
+	conn, err := NewGremlinConnection(urlStr, options...)
 	if err != nil {
 		return nil, err
 	}
-	client.SetLogVerbosity(verboseLogging)
-	return client, nil
+	conn.SetLogVerbosity(verboseLogging)
+	return conn, nil
 }
 
-func (c *Client) SetLogVerbosity(verboseLogging bool) {
+func (c *GremlinConnection) SetLogVerbosity(verboseLogging bool) {
 	c.VerboseLogging = verboseLogging
 }
 
-// Client executes the provided request
-func (c *Client) ExecQuery(query string) ([]byte, error) {
+// GremlinConnection executes the provided request
+func (c *GremlinConnection) ExecQuery(query string) ([]byte, error) {
 	req := Query(query)
 	return c.Exec(req)
 }
 
-func (c *Client) Exec(req *Request) ([]byte, error) {
+func (c *GremlinConnection) Exec(req *Request) ([]byte, error) {
 	requestMessage, err := GraphSONSerializer(req)
 	if err != nil {
 		return nil, err
@@ -77,7 +76,7 @@ func (c *Client) Exec(req *Request) ([]byte, error) {
 	return c.ReadResponse()
 }
 
-func (c *Client) ReadResponse() (data []byte, err error) {
+func (c *GremlinConnection) ReadResponse() (data []byte, err error) {
 	// Data buffer
 	var message []byte
 	var dataItems []json.RawMessage
@@ -133,6 +132,17 @@ func (c *Client) ReadResponse() (data []byte, err error) {
 	return
 }
 
+func (c *GremlinConnection) Reconnect(urlStr string) error {
+	dialer := websocket.Dialer{}
+	ws, _, err := dialer.Dial(urlStr, http.Header{})
+	c.Ws = ws
+	return err
+}
+
+func (c *GremlinConnection) Close() error {
+	return c.Ws.Close()
+}
+
 // AuthInfo includes all info related with SASL authentication with the Gremlin server
 // ChallengeId is the  requestID in the 407 status (AUTHENTICATE) response given by the server.
 // We have to send an authentication request with that same RequestID in order to solve the challenge.
@@ -183,7 +193,7 @@ func OptAuthUserPass(user, pass string) OptAuth {
 }
 
 // Authenticates the connection
-func (c *Client) Authenticate(requestId string) ([]byte, error) {
+func (c *GremlinConnection) Authenticate(requestId string) ([]byte, error) {
 	auth, err := NewAuthInfo(c.Auth...)
 	if err != nil {
 		return nil, err
@@ -204,20 +214,9 @@ func (c *Client) Authenticate(requestId string) ([]byte, error) {
 	return c.Exec(authReq)
 }
 
-func (c *Client) Reconnect(urlStr string) error {
-	dialer := websocket.Dialer{}
-	ws, _, err := dialer.Dial(urlStr, http.Header{})
-	c.Ws = ws
-	return err
-}
-
-func (c *Client) Close() error {
-	return c.Ws.Close()
-}
-
 // Send a dummy query to neptune
 // If there is a network error, attempt to reconnect
-func (c *Client) MaintainConnection(urlStr string) error {
+func (c *GremlinConnection) MaintainConnection(urlStr string) error {
 	simpleQuery := `g.V().limit(0)`
 
 	_, err := c.ExecQuery(simpleQuery)

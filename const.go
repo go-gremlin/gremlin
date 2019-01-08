@@ -8,7 +8,7 @@ const (
 	// Gremlin client allows the following:
 	//     - all alphanumeric characters
 	//     - all whitespace charaters
-	//     - the following punctuation: \, ;, ., :, /, -, ?, !, *, (, ), &, _, =, ,, #, ?, !, ', "
+	//     - the following punctuation: \, ;, ., :, /, -, ?, !, *, (, ), &, _, =, ,, #, ?, !, "
 	ARG_REGEX = "^[\\d\\w\\s\\\\;\\.\\:\\/\\-\\?\\!\\*\\(\\)\\&\\_\\=\\,\\#\\?\\!\\'\\>\\<\"]+$"
 )
 

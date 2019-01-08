@@ -1,54 +1,64 @@
 package gremlin
 
 import (
-	"bytes"
+	"encoding/json"
 )
 
-func CharSliceToMap(chars []rune) map[rune]bool {
-	charMap := make(map[rune]bool)
-	for _, char := range chars {
-		charMap[char] = true
+func (r Response) SerializeVertexes(rawResponse string) (Vertexes, error) {
+	// TODO: empty strings for property values will cause invalid json
+	// make so it can handle that case
+	var response Vertexes
+	if rawResponse == "" {
+		return response, nil
 	}
-	return charMap
-}
-
-func InterfaceToString(i interface{}) string {
-	s, _ := i.(string)
-	return s
-}
-
-func CoalesceStrings(s ...string) string {
-	for _, v := range s {
-		if v != "" {
-			return v
-		}
+	err := json.Unmarshal([]byte(rawResponse), &response)
+	if err != nil {
+		return nil, err
 	}
-	return ""
+	return response, nil
 }
 
-func EscapeArgs(args []interface{}, escapeFn func(string) string) []interface{} {
-	for idx := range args {
-		switch args[idx].(type) {
-		case string:
-			args[idx] = escapeFn(args[idx].(string))
-		}
+func SerializeGremlinCount(rawResponse string) ([]GremlinCount, error) {
+	// TODO: empty strings for property values will cause invalid json
+	// make so it can handle that case
+	var response []GremlinCount
+	err := json.Unmarshal([]byte(rawResponse), &response)
+	if err != nil {
+		return nil, err
 	}
-	return args
+	return response, nil
 }
 
-func EscapeGremlin(value string) string {
-	return escapeCharacters(value, ESCAPE_CHARS_GREMLIN)
-}
-
-func escapeCharacters(value string, escapeChars map[rune]bool) string {
-	var buffer bytes.Buffer
-
-	for _, char := range value {
-		if escapeChars[char] {
-			buffer.WriteRune(backslash)
-		}
-		buffer.WriteRune(char)
+func SerializeEdges(rawResponse string) (Edges, error) {
+	var response Edges
+	if rawResponse == "" {
+		return response, nil
 	}
+	err := json.Unmarshal([]byte(rawResponse), &response)
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
 
-	return buffer.String()
+func ConvertToCleanVertexes(vertexes Vertexes) []CleanVertex {
+	var responseVertexes []CleanVertex
+	for _, vertex := range vertexes {
+		responseVertexes = append(responseVertexes, CleanVertex{
+			Id:    vertex.Value.ID,
+			Label: vertex.Value.Label,
+		})
+	}
+	return responseVertexes
+}
+
+func ConvertToCleanEdges(edges Edges) []CleanEdge {
+	var responseEdges []CleanEdge
+	for _, edge := range edges {
+		responseEdges = append(responseEdges, CleanEdge{
+			Source: edge.Value.InV,
+			Target: edge.Value.OutV,
+		})
+	}
+	return responseEdges
 }

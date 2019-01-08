@@ -6,16 +6,16 @@ import (
 	"time"
 )
 
-type Logger interface {
+type Logger_i interface {
 	Log(keyvals ...interface{}) error
 }
 
 type GremlinLogger struct {
 	next   Gremlin_i
-	logger Logger
+	logger Logger_i
 }
 
-func NewGremlinLogger(next Gremlin_i, logger Logger) GremlinLogger {
+func NewGremlinLogger(next Gremlin_i, logger Logger_i) GremlinLogger {
 	return GremlinLogger{
 		next:   next,
 		logger: logger,

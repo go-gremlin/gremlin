@@ -9,15 +9,16 @@ import (
 )
 
 type GremlinClient struct {
-	pool      *gremlinPool
-	urlStr    string
-	argRegexp *regexp.Regexp
-	mutex     *sync.Mutex
+	pool       *gremlinPool
+	urlStr     string
+	argRegexp  *regexp.Regexp
+	mutex      *sync.Mutex
+	maxRetries int
 }
 
-func NewGremlinClient(urlStr string, maxCap int, verboseLogging bool, options ...OptAuth) (*GremlinClient, error) {
+func NewGremlinClient(urlStr string, maxCap int, maxRetries int, verboseLogging bool, options ...OptAuth) (*GremlinClient, error) {
 	newClientFn := func() (GoGremlin, error) {
-		return NewVerboseClient(urlStr, verboseLogging, options...)
+		return NewVerboseGremlinConn(urlStr, verboseLogging, options...)
 	}
 
 	pool, err := newGremlinPool(maxCap, newClientFn)
@@ -29,10 +30,11 @@ func NewGremlinClient(urlStr string, maxCap int, verboseLogging bool, options ..
 		return nil, err
 	}
 	c := &GremlinClient{
-		urlStr:    urlStr,
-		pool:      pool,
-		argRegexp: argRegexp,
-		mutex:     &sync.Mutex{},
+		urlStr:     urlStr,
+		pool:       pool,
+		argRegexp:  argRegexp,
+		mutex:      &sync.Mutex{},
+		maxRetries: maxRetries,
 	}
 
 	return c, nil
@@ -57,9 +59,8 @@ func (c *GremlinClient) ExecQueryF(ctx context.Context, query string, args ...in
 
 func (c *GremlinClient) execWithRetry(ctx context.Context, query string) (rawResponse []byte, err error) {
 	var (
-		client   GoGremlin
-		tryNum   = 1
-		maxTries = 2
+		client GoGremlin
+		tryNum = 1
 	)
 
 	for {
@@ -70,7 +71,7 @@ func (c *GremlinClient) execWithRetry(ctx context.Context, query string) (rawRes
 		default:
 		}
 
-		if tryNum > maxTries {
+		if tryNum > c.maxRetries {
 			_ = closeClient(client)
 			return nil, fmt.Errorf("max tries reached %d, with err: %v", tryNum, err)
 		}

@@ -129,7 +129,6 @@ func (c *GremlinConnection) ReadResponse() (data []byte, err error) {
 			return
 		}
 	}
-	return
 }
 
 func (c *GremlinConnection) Reconnect(urlStr string) error {

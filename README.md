@@ -33,7 +33,7 @@ You can instantiate it using NewGremlinStack or NewGremlinStackSimple (which exc
 	maxRetries := 3
 	verboseLogging := true
 
-	myStack, err := gremlin.NewGremlinStackSimple("ws://server1:8182/gremlin", maxPoolCapacity, maxRetries, verboseLogging)
+	myStack, err := gremlin.NewGremlinStackSimple(gremlinServer, maxPoolCapacity, maxRetries, verboseLogging)
 	if err != nil {
 		// handle error here
 	}
@@ -134,8 +134,11 @@ In addition, there are provided utilities to convert to "CleanVertexes" and "Cle
 ### Limitations
 
 The Gremlin client forces some restraints on the characters allowed in a gremlin query to avoid issues with the query syntax. Currently the allowed characters are:
+
 1. All alpha-numeric characters
+
 2. All whitespace characters
+
 3. The following punctuation: \, ;, ., :, /, -, ?, !, \*, (, ), &, \_, =, ,, #, ?, !, "
 
 
@@ -195,8 +198,8 @@ For authentication, you can set environment variables `GREMLIN_USER` and `GREMLI
 
 ```go
 	auth := gremlin.OptAuthEnv()
-	client, err := gremlin.NewClient("ws://remote.example.com:443/gremlin", auth)
-	data, err = client.ExecQuery(`g.V()`)
+	myStack, err := gremlin.NewGremlinStackSimple("ws://server1:8182/gremlin", maxPoolCapacity, maxRetries, verboseLogging, auth)
+	data, err = client.ExecQueryF(`g.V()`)
 	if err != nil {
 		panic(err)
 	}
@@ -206,8 +209,8 @@ For authentication, you can set environment variables `GREMLIN_USER` and `GREMLI
 If you don't like environment variables you can authenticate passing username and password string in the following way:
 ```go
 	auth := gremlin.OptAuthUserPass("myusername", "mypass")
-	client, err := gremlin.NewClient("ws://remote.example.com:443/gremlin", auth)
-	data, err = client.ExecQuery(`g.V()`)
+	myStack, err := gremlin.NewGremlinStackSimple("ws://server1:8182/gremlin", maxPoolCapacity, maxRetries, verboseLogging, auth)
+	data, err = client.ExecQueryF(`g.V()`)
 	if err != nil {
 		panic(err)
 	}

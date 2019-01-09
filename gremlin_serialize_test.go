@@ -1,18 +1,86 @@
 package gremlin
 
-// import (
-// 	"testing"
-// )
+import (
+	"fmt"
+	"testing"
+)
 
-// func TestSerializeVertexes(t *testing.T) {
+func makeDummyVertexProperty(label string, value interface{}) VertexProperty {
+	return VertexProperty{
+		Type: "g:VertexProperty",
+		Value: VertexPropertyValue{
+			ID: GenericValue{
+				Type:  "Type",
+				Value: 1,
+			},
+			Value: value,
+			Label: label,
+		},
+	}
+}
 
-// 	inputString := `[{"@type":"g:Vertex","@value":{"id":"https://sqs.us-west-2.amazonaws.com/496584544324/sqs-cbi_prd-dirty-investor-profiles-queue","label":"queue","properties":{"queue_name":[{"@type":"g:VertexProperty","@value":{"id":{"@type":"g:Int32","@value":247643139},"value":"sqs-cbi_prd-dirty-investor-profiles","label":"queue_name"}}],"dead_letter_target_arn":[{"@type":"g:VertexProperty","@value":{"id":{"@type":"g:Int32","@value":-929173958},"value":"arn:aws:sqs:us-west-2:496584544324:sqs-cbi_prd-dirty-investor-profiles-dead","label":"dead_letter_target_arn"}}],"queue_url":[{"@type":"g:VertexProperty","@value":{"id":{"@type":"g:Int32","@value":-230068604},"value":"https://sqs.us-west-2.amazonaws.com/496584544324/sqs-cbi_prd-dirty-investor-profiles","label":"queue_url"}}],"health":[{"@type":"g:VertexProperty","@value":{"id":{"@type":"g:Int32","@value":-790749087},"value":"1","label":"health"}}],"oldest_message_seconds":[{"@type":"g:VertexProperty","@value":{"id":{"@type":"g:Int32","@value":-383438945},"value":"0.000000","label":"oldest_message_seconds"}}],"create_date":[{"@type":"g:VertexProperty","@value":{"id":{"@type":"g:Int32","@value":1640500219},"value":"2018-12-14T21:51:20Z","label":"create_date"}}],"last_updated_date":[{"@type":"g:VertexProperty","@value":{"id":{"@type":"g:Int32","@value":-195565151},"value":"2019-01-08T22:33:25Z","label":"last_updated_date"}}],"dead_letter_queue_health":[{"@type":"g:VertexProperty","@value":{"id":{"@type":"g:Int32","@value":1477226235},"value":"GREEN","label":"dead_letter_queue_health"}}],"oldest_message_health":[{"@type":"g:VertexProperty","@value":{"id":{"@type":"g:Int32","@value":-482108672},"value":"UNKNOWN","label":"oldest_message_health"}}],"dead_letter_queue_messages":[{"@type":"g:VertexProperty","@value":{"id":{"@type":"g:Int32","@value":-384491714},"value":"0","label":"dead_letter_queue_messages"}}]}}}]`
-// 	inputString = `[{"@type":"g:Edge","@value":{"id":"f8b3d759-fec1-ac41-0588-f7e5590d1f86","label":"moves_data","inVLabel":"topic","outVLabel":"queue","inV":"arn:aws:sns:us-west-2:496584544324:company-deletes-prd-topic","outV":"https://sqs.us-west-2.amazonaws.com/496584544324/searchconsumer-cs-company-deletes-prd-queue"}}]`
-// 	// TODO: empty strings for property values will cause invalid json
-// 	// make so it can handle that case
+func makeDummyVertex(vertexID, vertexLabel string, params map[string]interface{}) Vertex {
+	properties := make(map[string][]VertexProperty)
+	for label, value := range params {
+		var vp []VertexProperty
+		vSlice, err := value.([]interface{})
+		if err {
+			for _, p := range vSlice {
+				vertexProperty := makeDummyVertexProperty(label, p)
+				vp = append(vp, vertexProperty)
+			}
+		} else {
+			vertexProperty := makeDummyVertexProperty(label, value)
+			vp = append(vp, vertexProperty)
+		}
+		properties[label] = vp
+	}
+	vertexValue := VertexValue{
+		ID:         vertexID,
+		Label:      vertexLabel,
+		Properties: properties,
+	}
+	return Vertex{
+		Type:  "g:Vertex",
+		Value: vertexValue,
+	}
+}
 
-// 	result, _ := SerializeVertexes(inputString)
-// 	result2, _ := SerializeEdges(inputString)
-// 	result3, _ := SerializeResponse(inputString)
-// 	t.Error("result string", result, "result2", result2, "result3", result3)
-// }
+func TestSerializeVertexes(t *testing.T) {
+	givens := []string{
+		// test empty response
+		`[]`,
+		// test single vertex, single property
+		`[{"@type":"g:Vertex","@value":{"id":"test-id","label":"label","properties":{"health":[{"@type":"g:VertexProperty","@value":{"id":{"@type":"Type","@value": 1},"value":"1","label":"health"}}]}}}]`,
+		// test two vertexes, single property
+		`[{"@type":"g:Vertex","@value":{"id":"test-id","label":"label","properties":{"health":[{"@type":"g:VertexProperty","@value":{"id":{"@type":"Type","@value": 1},"value":"1","label":"health"}}]}}}, {"@type":"g:Vertex","@value":{"id":"test-id2","label":"label","properties":{"health":[{"@type":"g:VertexProperty","@value":{"id":{"@type":"Type","@value": 1},"value":"1","label":"health"}}]}}}]`,
+		// test single vertex, two properties
+		`[{"@type":"g:Vertex","@value":{"id":"test-id","label":"label","properties":{"health":[{"@type":"g:VertexProperty","@value":{"id":{"@type":"Type","@value": 1},"value":"1","label":"health"}}], "health2":[{"@type":"g:VertexProperty","@value":{"id":{"@type":"Type","@value": 1},"value":"2","label":"health2"}}]}}}]`,
+		// test single vertex, single property - but property has multiple values
+		`[{"@type":"g:Vertex","@value":{"id":"test-id","label":"label","properties":{"health":[{"@type":"g:VertexProperty","@value":{"id":{"@type":"Type","@value": 1},"value":"1","label":"health"}}, {"@type":"g:VertexProperty","@value":{"id":{"@type":"Type","@value": 1},"value":"2","label":"health"}}]}}}]`,
+	}
+	expecteds := [][]Vertex{
+		{},
+		{makeDummyVertex("test-id", "label", map[string]interface{}{"health": 1})},
+		{makeDummyVertex("test-id", "label", map[string]interface{}{"health": 1}), makeDummyVertex("test-id2", "label", map[string]interface{}{"health": 1})},
+		{makeDummyVertex("test-id", "label", map[string]interface{}{"health": 1, "health2": 2})},
+		{makeDummyVertex("test-id", "label", map[string]interface{}{"health": []interface{}{1, 2}})},
+	}
+	for i, given := range givens {
+		expected := expecteds[i]
+		result, err := SerializeVertexes(given)
+
+		if err != nil || len(result) != len(expected) {
+			t.Error("given", given, "expected", expected, "result", result, "err", err)
+		}
+		for j, resultVertex := range result {
+			expectedVertex := expected[j]
+			expectedVertexString := fmt.Sprintf("%v", expectedVertex)
+			resultVertexString := fmt.Sprintf("%v", resultVertex)
+			if expectedVertexString != resultVertexString {
+				t.Error("given", given, "expected", expected, "result", result)
+
+			}
+		}
+	}
+}

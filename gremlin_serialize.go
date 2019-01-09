@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 )
 
-func (r Response) SerializeVertexes(rawResponse string) (Vertexes, error) {
+func SerializeVertexes(rawResponse string) (Vertexes, error) {
 	// TODO: empty strings for property values will cause invalid json
 	// make so it can handle that case
 	var response Vertexes

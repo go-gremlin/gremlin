@@ -18,7 +18,7 @@ type GremlinClient struct {
 
 func NewGremlinClient(urlStr string, maxCap int, maxRetries int, verboseLogging bool, options ...OptAuth) (*GremlinClient, error) {
 	newClientFn := func() (GoGremlin, error) {
-		return NewVerboseGremlinConn(urlStr, verboseLogging, options...)
+		return NewVerboseGremlinConnection(urlStr, verboseLogging, options...)
 	}
 
 	pool, err := newGremlinPool(maxCap, newClientFn)

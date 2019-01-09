@@ -46,6 +46,72 @@ func makeDummyVertex(vertexID, vertexLabel string, params map[string]interface{}
 	}
 }
 
+func makeDummyProperty(label string, value interface{}) EdgeProperty {
+	return EdgeProperty{
+		Type: "g:Property",
+		Value: EdgePropertyValue{
+			Value: value,
+			Label: label,
+		},
+	}
+}
+
+func makeDummyEdge(edgeID, edgeLabel, inVLabel, outVLabel, inV, outV string, params map[string]interface{}) Edge {
+	properties := make(map[string]EdgeProperty)
+	for label, value := range params {
+		properties[label] = makeDummyProperty(label, value)
+	}
+	edgeValue := EdgeValue{
+		ID:         edgeID,
+		Label:      edgeLabel,
+		InVLabel:   inVLabel,
+		OutVLabel:  outVLabel,
+		InV:        inV,
+		OutV:       outV,
+		Properties: properties,
+	}
+	return Edge{
+		Type:  "g:Edge",
+		Value: edgeValue,
+	}
+}
+
+func edgesMatch(edge1, edge2 Edge) bool {
+	if edge1.Type != edge2.Type {
+		return false
+	}
+	if edge1.Value.ID != edge2.Value.ID {
+		return false
+	}
+	if edge1.Value.Label != edge2.Value.Label {
+		return false
+	}
+	if edge1.Value.InV != edge2.Value.InV || edge1.Value.InVLabel != edge2.Value.InVLabel {
+		return false
+	}
+	if edge1.Value.OutV != edge2.Value.OutV || edge1.Value.OutVLabel != edge2.Value.OutVLabel {
+		return false
+	}
+	edge1PropsString := fmt.Sprintf("%v", edge1.Value.Properties)
+	edge2PropsString := fmt.Sprintf("%v", edge2.Value.Properties)
+	return edge1PropsString == edge2PropsString
+}
+
+func vertexesMatch(vertex1, vertex2 Vertex) bool {
+	if vertex1.Type != vertex2.Type {
+		return false
+	}
+	if vertex1.Value.ID != vertex2.Value.ID {
+		return false
+	}
+	if vertex1.Value.Label != vertex2.Value.Label {
+		return false
+	}
+	vertex1PropsString := fmt.Sprintf("%v", vertex1.Value.Properties)
+	vertex2PropsString := fmt.Sprintf("%v", vertex2.Value.Properties)
+	return vertex1PropsString == vertex2PropsString
+}
+
 func TestSerializeVertexes(t *testing.T) {
 	givens := []string{
 		// test empty response
@@ -75,11 +141,45 @@ func TestSerializeVertexes(t *testing.T) {
 		}
 		for j, resultVertex := range result {
 			expectedVertex := expected[j]
-			expectedVertexString := fmt.Sprintf("%v", expectedVertex)
-			resultVertexString := fmt.Sprintf("%v", resultVertex)
-			if expectedVertexString != resultVertexString {
+			if !vertexesMatch(resultVertex, expectedVertex) {
 				t.Error("given", given, "expected", expected, "result", result)
+			}
+		}
+	}
+}
 
+func TestSerializeEdges(t *testing.T) {
+	givens := []string{
+		// test empty response
+		`[]`,
+		// test single edge, single property
+		`[{"@type":"g:Edge","@value":{"id":"test-id","label":"label","inVLabel":"inVLabel","outVLabel":"outVLabel","inV":"inV","outV":"outV","properties":{"test":{"@type":"g:Property","@value":{"key":"test","value":"test"}}}}}]`,
+		// test two edges, single property
+		`[{"@type":"g:Edge","@value":{"id":"test-id","label":"label","inVLabel":"inVLabel","outVLabel":"outVLabel","inV":"inV","outV":"outV","properties":{"test":{"@type":"g:Property","@value":{"key":"test","value":"test"}}}}}, {"@type":"g:Edge","@value":{"id":"test-id2","label":"label","inVLabel":"inVLabel","outVLabel":"outVLabel","inV":"inV","outV":"outV","properties":{"test":{"@type":"g:Property","@value":{"key":"test","value":"test"}}}}}]`,
+		// test single edge, multiple properties
+		`[{"@type":"g:Edge","@value":{"id":"test-id","label":"label","inVLabel":"inVLabel","outVLabel":"outVLabel","inV":"inV","outV":"outV","properties":{"test":{"@type":"g:Property","@value":{"key":"test","value":"test"}}, "test2":{"@type":"g:Property","@value":{"key":"test2","value":1}}}}}]`,
+	}
+	expecteds := [][]Edge{
+		{},
+		{makeDummyEdge("test-id", "label", "inVLabel", "outVLabel", "inV", "outV", map[string]interface{}{"test": "test"})},
+		{makeDummyEdge("test-id", "label", "inVLabel", "outVLabel", "inV", "outV", map[string]interface{}{"test": "test"}), makeDummyEdge("test-id2", "label", "inVLabel", "outVLabel", "inV", "outV", map[string]interface{}{"test": "test"})},
+		{makeDummyEdge("test-id", "label", "inVLabel", "outVLabel", "inV", "outV", map[string]interface{}{"test": "test", "test2": 1})},
+	}
+
+	for i, given := range givens {
+		expected := expecteds[i]
+		result, err := SerializeEdges(given)
+
+		if err != nil || len(result) != len(expected) {
+			t.Error("given", given, "expected", expected, "result", result, "err", err)
+		}
+
+		for j, resultEdge := range result {
+			expectedEdge := expected[j]
+			expectedEdgeString := fmt.Sprintf("%v", expectedEdge)
+			resultEdgeString := fmt.Sprintf("%v", resultEdge)
+			if !edgesMatch(resultEdge, expectedEdge) {
+				t.Error("given", given, "expected", expectedEdgeString, "result", resultEdgeString)
 			}
 		}
 	}

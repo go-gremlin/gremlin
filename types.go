@@ -41,8 +41,8 @@ type VertexPropertyValue struct {
 }
 
 type EdgePropertyValue struct {
-	Label string `json:"key"`
-	Value string `json:"value"`
+	Label string      `json:"key"`
+	Value interface{} `json:"value"`
 }
 
 type GenericValue struct {

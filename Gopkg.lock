@@ -2,6 +2,14 @@
 
 
 [[projects]]
+  digest = "1:c594a691090b434d55c67f6cc8e326ef5ba49452abc059821bd5d4fd4cdef08c"
+  name = "github.com/gofrs/uuid"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "7077aa61129615a0d7f45c49101cd011ab221c27"
+  version = "v3.1.2"
+
+[[projects]]
   digest = "1:912c41396888a5e965d9d3fd29892f2931e193d755bdb6199b8d760d2758f565"
   name = "github.com/gorilla/websocket"
   packages = ["."]
@@ -21,14 +29,6 @@
   version = "v1.0.2"
 
 [[projects]]
-  digest = "1:34a99dd0852c5c9c16e9b86884e9e0cb3e4a7a01df4dea7913f85ea7fb786bbe"
-  name = "github.com/satori/go.uuid"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "879c5887cd475cd7864858769793b2ceb0d44feb"
-  version = "v1.1.0"
-
-[[projects]]
   branch = "master"
   digest = "1:76ee51c3f468493aff39dbacc401e8831fbb765104cbf613b89bef01cf4bad70"
   name = "golang.org/x/net"
@@ -40,9 +40,9 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/gofrs/uuid",
     "github.com/gorilla/websocket",
     "github.com/opentracing/opentracing-go",
-    "github.com/satori/go.uuid",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

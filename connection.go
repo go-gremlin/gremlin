@@ -58,7 +58,10 @@ func (c *GremlinConnection) SetLogVerbosity(verboseLogging bool) {
 
 // GremlinConnection executes the provided request
 func (c *GremlinConnection) ExecQuery(query string) ([]byte, error) {
-	req := Query(query)
+	req, err := Query(query)
+	if err != nil {
+		return nil, err
+	}
 	return c.Exec(req)
 }
 

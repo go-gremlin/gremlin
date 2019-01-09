@@ -273,3 +273,61 @@ func TestSerializeGenericValue(t *testing.T) {
 		}
 	}
 }
+
+func TestConvertToCleanVertexes(t *testing.T) {
+	givens := [][]Vertex{
+		{},
+		{makeDummyVertex("test-id", "label", map[string]interface{}{"health": 1})},
+		{makeDummyVertex("test-id", "label", map[string]interface{}{"health": 1}), makeDummyVertex("test-id2", "label", map[string]interface{}{"health": 1})},
+	}
+	expecteds := [][]CleanVertex{
+		{},
+		{CleanVertex{Id: "test-id", Label: "label"}},
+		{CleanVertex{Id: "test-id", Label: "label"}, CleanVertex{Id: "test-id2", Label: "label"}},
+	}
+
+	for i, given := range givens {
+		expected := expecteds[i]
+		result := ConvertToCleanVertexes(given)
+
+		if len(result) != len(expected) {
+			t.Error("given", given, "expected", expected, "result", result)
+		}
+
+		for j, resultCleanVertex := range result {
+			expectedCleanVertex := expected[j]
+			if expectedCleanVertex.Id != resultCleanVertex.Id || expectedCleanVertex.Label != expectedCleanVertex.Label {
+				t.Error("given", given, "expected", expected, "result", result)
+			}
+		}
+	}
+}
+
+func TestConvertToCleanEdges(t *testing.T) {
+	givens := [][]Edge{
+		{},
+		{makeDummyEdge("test-id", "label", "inVLabel", "outVLabel", "inV", "outV", map[string]interface{}{"test": "test"})},
+		{makeDummyEdge("test-id", "label", "inVLabel", "outVLabel", "inV", "outV", map[string]interface{}{"test": "test"}), makeDummyEdge("test-id2", "label", "inVLabel", "outVLabel", "inV2", "outV2", map[string]interface{}{"test": "test"})},
+	}
+	expecteds := [][]CleanEdge{
+		{},
+		{CleanEdge{Source: "inV", Target: "outV"}},
+		{CleanEdge{Source: "inV", Target: "outV"}, CleanEdge{Source: "inV2", Target: "outV2"}},
+	}
+
+	for i, given := range givens {
+		expected := expecteds[i]
+		result := ConvertToCleanEdges(given)
+
+		if len(result) != len(expected) {
+			t.Error("given", given, "expected", expected, "result", result)
+		}
+
+		for j, resultCleanEdges := range result {
+			expectedCleanEdges := expected[j]
+			if expectedCleanEdges.Source != resultCleanEdges.Source || expectedCleanEdges.Target != expectedCleanEdges.Target {
+				t.Error("given", given, "expected", expected, "result", result)
+			}
+		}
+	}
+}

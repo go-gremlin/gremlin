@@ -8,11 +8,6 @@ type GremlinResponse struct {
 
 type Vertexes []Vertex
 
-type GremlinCount struct {
-	Type  string `json:"@type"`
-	Value int    `json:"@value"`
-}
-
 type Vertex struct {
 	Type  string      `json:"@type"`
 	Value VertexValue `json:"@value"`
@@ -44,6 +39,8 @@ type EdgePropertyValue struct {
 	Label string      `json:"key"`
 	Value interface{} `json:"value"`
 }
+
+type GenericValues []GenericValue
 
 type GenericValue struct {
 	Type  string      `json:"@type"`

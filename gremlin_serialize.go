@@ -18,10 +18,11 @@ func SerializeVertexes(rawResponse string) (Vertexes, error) {
 	return response, nil
 }
 
-func SerializeGremlinCount(rawResponse string) ([]GremlinCount, error) {
-	// TODO: empty strings for property values will cause invalid json
-	// make so it can handle that case
-	var response []GremlinCount
+func SerializeEdges(rawResponse string) (Edges, error) {
+	var response Edges
+	if rawResponse == "" {
+		return response, nil
+	}
 	err := json.Unmarshal([]byte(rawResponse), &response)
 	if err != nil {
 		return nil, err
@@ -29,8 +30,8 @@ func SerializeGremlinCount(rawResponse string) ([]GremlinCount, error) {
 	return response, nil
 }
 
-func SerializeEdges(rawResponse string) (Edges, error) {
-	var response Edges
+func SerializeGenericValues(rawResponse string) (GenericValues, error) {
+	var response GenericValues
 	if rawResponse == "" {
 		return response, nil
 	}

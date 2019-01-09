@@ -76,6 +76,13 @@ func makeDummyEdge(edgeID, edgeLabel, inVLabel, outVLabel, inV, outV string, par
 	}
 }
 
+func makeDummyGenericValue(gvType string, value interface{}) GenericValue {
+	return GenericValue{
+		Type:  gvType,
+		Value: value,
+	}
+}
+
 func edgesMatch(edge1, edge2 Edge) bool {
 	if edge1.Type != edge2.Type {
 		return false
@@ -92,9 +99,20 @@ func edgesMatch(edge1, edge2 Edge) bool {
 	if edge1.Value.OutV != edge2.Value.OutV || edge1.Value.OutVLabel != edge2.Value.OutVLabel {
 		return false
 	}
-	edge1PropsString := fmt.Sprintf("%v", edge1.Value.Properties)
-	edge2PropsString := fmt.Sprintf("%v", edge2.Value.Properties)
-	return edge1PropsString == edge2PropsString
+	if len(edge1.Value.Properties) != len(edge2.Value.Properties) {
+		return false
+	}
+	for label, edge1Props := range edge1.Value.Properties {
+		edge2Props := edge2.Value.Properties[label]
+		if edge1Props.Type != edge2Props.Type {
+			return false
+		}
+		if edge1Props.Value.Label != edge2Props.Value.Label ||
+			fmt.Sprintf("%v", edge1Props.Value.Label) != fmt.Sprintf("%v", edge2Props.Value.Label) {
+			return false
+		}
+	}
+	return true
 }
 
 func vertexesMatch(vertex1, vertex2 Vertex) bool {
@@ -107,9 +125,41 @@ func vertexesMatch(vertex1, vertex2 Vertex) bool {
 	if vertex1.Value.Label != vertex2.Value.Label {
 		return false
 	}
-	vertex1PropsString := fmt.Sprintf("%v", vertex1.Value.Properties)
-	vertex2PropsString := fmt.Sprintf("%v", vertex2.Value.Properties)
-	return vertex1PropsString == vertex2PropsString
+	if len(vertex1.Value.Properties) != len(vertex2.Value.Properties) {
+		return false
+	}
+	for label, vertex1Props := range vertex1.Value.Properties {
+		vertex2Props := vertex2.Value.Properties[label]
+		if len(vertex1Props) != len(vertex2Props) {
+			return false
+		}
+		for i, vertex1PropsElement := range vertex1Props {
+			vertex2PropsElement := vertex2Props[i]
+			if vertex1PropsElement.Type != vertex2PropsElement.Type {
+				return false
+			}
+			if vertex1PropsElement.Value.ID.Type != vertex2PropsElement.Value.ID.Type ||
+				fmt.Sprintf("%v", vertex1PropsElement.Value.ID.Value) != fmt.Sprintf("%v", vertex2PropsElement.Value.ID.Value) {
+				return false
+			}
+			if vertex1PropsElement.Value.Label != vertex2PropsElement.Value.Label {
+				return false
+			}
+			if fmt.Sprintf("%v", vertex1PropsElement.Value.Value) != fmt.Sprintf("%v", vertex2PropsElement.Value.Value) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func genericValuesMatch(gv1, gv2 GenericValue) bool {
+	if gv1.Type != gv2.Type {
+		return false
+	}
+	gv1ValueString := fmt.Sprintf("%v", gv1.Value)
+	gv2ValueString := fmt.Sprintf("%v", gv2.Value)
+	return gv1ValueString == gv2ValueString
 }
 
 func TestSerializeVertexes(t *testing.T) {
@@ -141,8 +191,9 @@ func TestSerializeVertexes(t *testing.T) {
 		}
 		for j, resultVertex := range result {
 			expectedVertex := expected[j]
+
 			if !vertexesMatch(resultVertex, expectedVertex) {
-				t.Error("given", given, "expected", expected, "result", result)
+				t.Error("given", given, "expected", expectedVertex.Value.Properties, "result", resultVertex.Value.Properties)
 			}
 		}
 	}
@@ -176,10 +227,48 @@ func TestSerializeEdges(t *testing.T) {
 
 		for j, resultEdge := range result {
 			expectedEdge := expected[j]
-			expectedEdgeString := fmt.Sprintf("%v", expectedEdge)
-			resultEdgeString := fmt.Sprintf("%v", resultEdge)
 			if !edgesMatch(resultEdge, expectedEdge) {
+				expectedEdgeString := fmt.Sprintf("%v", expectedEdge)
+				resultEdgeString := fmt.Sprintf("%v", resultEdge)
 				t.Error("given", given, "expected", expectedEdgeString, "result", resultEdgeString)
+			}
+		}
+	}
+}
+
+func TestSerializeGenericValue(t *testing.T) {
+	givens := []string{
+		// test empty response
+		`[]`,
+		// test single gv, core return type
+		`[{"@type":"g:Edge", "@value": 1}]`,
+		// test 2 gv, core return type
+		`[{"@type":"g:Edge", "@value": 1}, {"@type":"g:Edge2", "@value": "test"}]`,
+		// test single gv, map return type
+		`[{"@type":"g:Edge", "@value": {"test": "test"}}]`,
+		// test single gv, nested map return type
+		`[{"@type":"g:Edge", "@value": {"test": {"test": "test"}}}]`,
+	}
+	expecteds := [][]GenericValue{
+		{},
+		{makeDummyGenericValue("g:Edge", 1)},
+		{makeDummyGenericValue("g:Edge", 1), makeDummyGenericValue("g:Edge2", "test")},
+		{makeDummyGenericValue("g:Edge", map[string]interface{}{"test": "test"})},
+		{makeDummyGenericValue("g:Edge", map[string]interface{}{"test": map[string]interface{}{"test": "test"}})},
+	}
+
+	for i, given := range givens {
+		expected := expecteds[i]
+		result, err := SerializeGenericValues(given)
+
+		if err != nil || len(result) != len(expected) {
+			t.Error("given", given, "expected", expected, "result", result, "err", err)
+		}
+
+		for j, resultGenericValue := range result {
+			expectedGenericValue := expected[j]
+			if !genericValuesMatch(resultGenericValue, expectedGenericValue) {
+				t.Error("given", given, "expected", expectedGenericValue, "result", resultGenericValue)
 			}
 		}
 	}

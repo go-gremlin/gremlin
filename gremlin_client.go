@@ -54,6 +54,28 @@ func (c *GremlinClient) ExecQueryF(ctx context.Context, query string, args ...in
 		return "", err
 	}
 
+	_ = Vertex{
+		Type: "g:Vertex",
+		Value: VertexValue{
+			ID:    "test-id",
+			Label: "label",
+			Properties: map[string][]VertexProperty{
+				"health": []VertexProperty{
+					VertexProperty{
+						Type: "g:VertexProperty",
+						Value: VertexPropertyValue{
+							ID: GenericValue{
+								Type:  "Type",
+								Value: 1,
+							},
+							Value: "1",
+							Label: "health",
+						},
+					},
+				},
+			},
+		},
+	}
 	return string(rawResponse), nil
 }
 

@@ -32,12 +32,24 @@ You can instantiate it using NewGremlinStack or NewGremlinStackSimple (which exc
 	maxPoolCapacity := 10
 	maxRetries := 3
 	verboseLogging := true
+	pingInterval := 5
 
-	myStack, err := gremlin.NewGremlinStackSimple(gremlinServer, maxPoolCapacity, maxRetries, verboseLogging)
+	myStack, err := gremlin.NewGremlinStackSimple(gremlinServer, maxPoolCapacity, maxRetries, verboseLogging, pingInterval)
 	if err != nil {
 		// handle error here
 	}
 ```
+
+Note:
+The arguments for NewGremlinStack perform the following functions:
+
+* maxPoolCapacity sets the number connections to keep in the pool
+
+* maxRetries sets the number of retries to use on a connection before trying another
+
+* verboseLogging denotes the verbosity of logs received from your gremlin server
+
+* pingInterval denotes how often (in seconds) the gremlin pool should refresh itself
 
 ### Querying the database
 

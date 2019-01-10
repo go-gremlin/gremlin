@@ -2,6 +2,8 @@ package gremlin
 
 import (
 	"context"
+	"time"
+
 	"github.com/opentracing/opentracing-go"
 )
 
@@ -33,9 +35,16 @@ func (g GremlinTracer) ExecQueryF(ctx context.Context, query string, args ...int
 	return g.next.ExecQueryF(ctx, query, args...)
 }
 
-func (g GremlinTracer) PingDatabase(ctx context.Context) (err error) {
-	method := CoalesceStrings(OpNameFromContext(ctx), "Gremlin.PingDatabase")
+func (g GremlinTracer) StartMonitor(ctx context.Context, interval time.Duration) (err error) {
+	method := CoalesceStrings(OpNameFromContext(ctx), "Gremlin.StartMonitor")
 	span, _ := StartSpanFromParent(ctx, g.tracer, method, opentracing.Tags{"type": "gremlin"})
 	defer span.Finish()
-	return g.next.PingDatabase(ctx)
+	return g.next.StartMonitor(ctx, interval)
+}
+
+func (g GremlinTracer) Close(ctx context.Context) (err error) {
+	method := CoalesceStrings(OpNameFromContext(ctx), "Gremlin.Close")
+	span, _ := StartSpanFromParent(ctx, g.tracer, method, opentracing.Tags{"type": "gremlin"})
+	defer span.Finish()
+	return g.next.Close(ctx)
 }

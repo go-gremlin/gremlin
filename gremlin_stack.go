@@ -2,16 +2,18 @@ package gremlin
 
 import (
 	"context"
+	"time"
 
 	"github.com/opentracing/opentracing-go"
 )
 
 type Gremlin_i interface {
 	ExecQueryF(ctx context.Context, query string, args ...interface{}) (response string, err error)
-	PingDatabase(ctx context.Context) (err error)
+	StartMonitor(ctx context.Context, interval time.Duration) (err error)
+	Close(ctx context.Context) (err error)
 }
 
-func NewGremlinStackSimple(urlStr string, maxCap int, maxRetries int, verboseLogging bool, options ...OptAuth) (Gremlin_i, error) {
+func NewGremlinStackSimple(urlStr string, maxCap int, maxRetries int, verboseLogging bool, pingInterval int, options ...OptAuth) (Gremlin_i, error) {
 	var (
 		err error
 		g   Gremlin_i
@@ -20,10 +22,11 @@ func NewGremlinStackSimple(urlStr string, maxCap int, maxRetries int, verboseLog
 	if err != nil {
 		return nil, err
 	}
+	_ = g.StartMonitor(context.Background(), time.Duration(pingInterval))
 	return g, nil
 }
 
-func NewGremlinStack(urlStr string, maxCap int, maxRetries int, verboseLogging bool, logger Logger_i, tracer opentracing.Tracer, instr InstrumentationProvider_i, options ...OptAuth) (Gremlin_i, error) {
+func NewGremlinStack(urlStr string, maxCap int, maxRetries int, verboseLogging bool, pingInterval int, logger Logger_i, tracer opentracing.Tracer, instr InstrumentationProvider_i, options ...OptAuth) (Gremlin_i, error) {
 	var (
 		err error
 		g   Gremlin_i
@@ -36,6 +39,8 @@ func NewGremlinStack(urlStr string, maxCap int, maxRetries int, verboseLogging b
 	g = NewGremlinLogger(g, logger)
 	g = NewGremlinTracer(g, tracer)
 	g = NewGremlinInstr(g, instr)
+
+	_ = g.StartMonitor(context.Background(), time.Duration(pingInterval))
 	return g, nil
 }
 

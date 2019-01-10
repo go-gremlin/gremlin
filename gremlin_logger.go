@@ -34,8 +34,8 @@ func (g GremlinLogger) ExecQueryF(ctx context.Context, query string, args ...int
 	return g.next.ExecQueryF(ctx, query, args...)
 }
 
-func (g GremlinLogger) PingDatabase(ctx context.Context) (err error) {
-	method := CoalesceStrings(OpNameFromContext(ctx), "Gremlin.PingDatabase")
+func (g GremlinLogger) StartMonitor(ctx context.Context, interval time.Duration) (err error) {
+	method := CoalesceStrings(OpNameFromContext(ctx), "Gremlin.StartMonitor")
 	defer func(begin time.Time) {
 		if err != nil {
 			g.logger.Log("level", "error", fmt.Sprintf("%s completed in %v with error: %v", method, time.Since(begin), err))
@@ -43,5 +43,17 @@ func (g GremlinLogger) PingDatabase(ctx context.Context) (err error) {
 			g.logger.Log("level", "debug", "message", fmt.Sprintf("%s completed in %v.", method, time.Since(begin)))
 		}
 	}(time.Now())
-	return g.next.PingDatabase(ctx)
+	return g.next.StartMonitor(ctx, interval)
+}
+
+func (g GremlinLogger) Close(ctx context.Context) (err error) {
+	method := CoalesceStrings(OpNameFromContext(ctx), "Gremlin.Close")
+	defer func(begin time.Time) {
+		if err != nil {
+			g.logger.Log("level", "error", fmt.Sprintf("%s completed in %v with error: %v", method, time.Since(begin), err))
+		} else {
+			g.logger.Log("level", "debug", "message", fmt.Sprintf("%s completed in %v.", method, time.Since(begin)))
+		}
+	}(time.Now())
+	return g.next.Close(ctx)
 }

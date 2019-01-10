@@ -6,6 +6,7 @@ import (
 	"net"
 	"regexp"
 	"sync"
+	"time"
 )
 
 type GremlinClient struct {
@@ -14,6 +15,8 @@ type GremlinClient struct {
 	argRegexp  *regexp.Regexp
 	mutex      *sync.Mutex
 	maxRetries int
+	quit       chan struct{}
+	done       chan struct{}
 }
 
 func NewGremlinClient(urlStr string, maxCap int, maxRetries int, verboseLogging bool, options ...OptAuth) (*GremlinClient, error) {
@@ -29,6 +32,7 @@ func NewGremlinClient(urlStr string, maxCap int, maxRetries int, verboseLogging 
 	if err != nil {
 		return nil, err
 	}
+
 	c := &GremlinClient{
 		urlStr:     urlStr,
 		pool:       pool,
@@ -106,18 +110,42 @@ func (c *GremlinClient) execWithRetry(ctx context.Context, query string) (rawRes
 			return nil, err
 		}
 		// if it is a network error, repeat the loop
-
 	}
-
 	// should we worry about an error here?
 	_ = c.pool.Put(client)
 
 	return rawResponse, nil
 }
 
-func (c *GremlinClient) PingDatabase(ctx context.Context) error {
-	err := c.pool.MaintainPool(c.urlStr)
+func (c *GremlinClient) Close(ctx context.Context) error {
+	c.quit <- struct{}{}
+	<-c.done
+	err := c.pool.Close()
 	return err
+}
+
+func (c *GremlinClient) StartMonitor(ctx context.Context, interval time.Duration) error {
+	ticker := time.NewTicker(interval * time.Second)
+	quit := make(chan struct{})
+	done := make(chan struct{})
+	go runMonitorTilQuit(ctx, quit, done, ticker, c)
+	c.quit = quit
+	c.done = done
+	return nil
+}
+
+func runMonitorTilQuit(ctx context.Context, quit, done chan struct{}, ticker *time.Ticker, c *GremlinClient) {
+	defer func() {
+		done <- struct{}{}
+	}()
+	for {
+		select {
+		case <-quit:
+			return
+		case <-ticker.C:
+			_ = c.pool.MaintainPool(c.urlStr)
+		}
+	}
 }
 
 func closeClient(client GoGremlin) error {

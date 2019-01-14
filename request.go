@@ -3,7 +3,7 @@ package gremlin
 import (
 	"encoding/json"
 	_ "fmt"
-	"github.com/satori/go.uuid"
+	"github.com/gofrs/uuid"
 )
 
 type Request struct {
@@ -56,12 +56,15 @@ func NewFormattedReq(req *Request) FormattedReq {
 
 type Bind map[string]interface{}
 
-func Query(query string) *Request {
+func Query(query string) (*Request, error) {
 	args := &RequestArgs{
 		Gremlin:  query,
 		Language: "gremlin-groovy",
 	}
-	u := uuid.NewV4()
+	u, err := uuid.NewV4()
+	if err != nil {
+		return nil, err
+	}
 	uuidString := u.String()
 	req := &Request{
 		RequestId: uuidString,
@@ -69,7 +72,7 @@ func Query(query string) *Request {
 		Processor: "",
 		Args:      args,
 	}
-	return req
+	return req, nil
 }
 
 func (req *Request) Bindings(bindings Bind) *Request {

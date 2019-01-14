@@ -15,15 +15,22 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// Clients include the necessary info to connect to the server and the underlying socket
-type Client struct {
+type GoGremlin interface {
+	ExecQuery(query string) ([]byte, error)
+	Close() error
+	Reconnect(urlStr string) error
+	MaintainConnection(urlStr string) error
+}
+
+// GremlinConnections include the necessary info to connect to the server and the underlying socket
+type GremlinConnection struct {
 	Remote         *url.URL
 	Ws             *websocket.Conn
 	Auth           []OptAuth
 	VerboseLogging bool
 }
 
-func NewClient(urlStr string, options ...OptAuth) (*Client, error) {
+func NewGremlinConnection(urlStr string, options ...OptAuth) (*GremlinConnection, error) {
 	r, err := url.Parse(urlStr)
 	if err != nil {
 		return nil, err
@@ -33,29 +40,32 @@ func NewClient(urlStr string, options ...OptAuth) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Client{Remote: r, Ws: ws, Auth: options}, nil
+	return &GremlinConnection{Remote: r, Ws: ws, Auth: options}, nil
 }
 
-func NewVerboseClient(urlStr string, verboseLogging bool, options ...OptAuth) (*Client, error) {
-	client, err := NewClient(urlStr, options...)
+func NewVerboseGremlinConnection(urlStr string, verboseLogging bool, options ...OptAuth) (*GremlinConnection, error) {
+	conn, err := NewGremlinConnection(urlStr, options...)
 	if err != nil {
 		return nil, err
 	}
-	client.SetLogVerbosity(verboseLogging)
-	return client, nil
+	conn.SetLogVerbosity(verboseLogging)
+	return conn, nil
 }
 
-func (c *Client) SetLogVerbosity(verboseLogging bool) {
+func (c *GremlinConnection) SetLogVerbosity(verboseLogging bool) {
 	c.VerboseLogging = verboseLogging
 }
 
-// Client executes the provided request
-func (c *Client) ExecQuery(query string) ([]byte, error) {
-	req := Query(query)
+// GremlinConnection executes the provided request
+func (c *GremlinConnection) ExecQuery(query string) ([]byte, error) {
+	req, err := Query(query)
+	if err != nil {
+		return nil, err
+	}
 	return c.Exec(req)
 }
 
-func (c *Client) Exec(req *Request) ([]byte, error) {
+func (c *GremlinConnection) Exec(req *Request) ([]byte, error) {
 	requestMessage, err := GraphSONSerializer(req)
 	if err != nil {
 		return nil, err
@@ -69,7 +79,7 @@ func (c *Client) Exec(req *Request) ([]byte, error) {
 	return c.ReadResponse()
 }
 
-func (c *Client) ReadResponse() (data []byte, err error) {
+func (c *GremlinConnection) ReadResponse() (data []byte, err error) {
 	// Data buffer
 	var message []byte
 	var dataItems []json.RawMessage
@@ -117,12 +127,22 @@ func (c *Client) ReadResponse() (data []byte, err error) {
 			} else if !c.VerboseLogging {
 				err = errors.New(msg)
 			} else {
-				err = errors.New(fmt.Sprintf("%d error: %s. See additional details below:\nMessage: %s\nResult Data: %v", res.Status.Code, msg, res.Status.Message, res.Result.Data))
+				err = errors.New(fmt.Sprintf("%d error: %s. See additional details below:\nMessage: %s", res.Status.Code, msg, res.Status.Message))
 			}
 			return
 		}
 	}
-	return
+}
+
+func (c *GremlinConnection) Reconnect(urlStr string) error {
+	dialer := websocket.Dialer{}
+	ws, _, err := dialer.Dial(urlStr, http.Header{})
+	c.Ws = ws
+	return err
+}
+
+func (c *GremlinConnection) Close() error {
+	return c.Ws.Close()
 }
 
 // AuthInfo includes all info related with SASL authentication with the Gremlin server
@@ -175,7 +195,7 @@ func OptAuthUserPass(user, pass string) OptAuth {
 }
 
 // Authenticates the connection
-func (c *Client) Authenticate(requestId string) ([]byte, error) {
+func (c *GremlinConnection) Authenticate(requestId string) ([]byte, error) {
 	auth, err := NewAuthInfo(c.Auth...)
 	if err != nil {
 		return nil, err
@@ -194,6 +214,28 @@ func (c *Client) Authenticate(requestId string) ([]byte, error) {
 		Args:      args,
 	}
 	return c.Exec(authReq)
+}
+
+// Send a dummy query to neptune
+// If there is a network error, attempt to reconnect
+func (c *GremlinConnection) MaintainConnection(urlStr string) error {
+	simpleQuery := `g.V().limit(0)`
+
+	_, err := c.ExecQuery(simpleQuery)
+	if err == nil {
+		return nil
+	}
+
+	_, isNetErr := err.(*net.OpError) // check if err is a network error
+	if err != nil && !isNetErr {      // if it's not network error, so something else went wrong, no point in retrying
+		return err
+	}
+	// if it is a network error, attempt to reconnect
+	err = c.Reconnect(urlStr)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 var servers []*url.URL

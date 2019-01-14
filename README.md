@@ -18,9 +18,12 @@ Gremlin Stack
 ---------------
 
 Using the Gremlin Stack allows you to include a number of features on top of the Websocket that connects to your Gremlin server:
-	1. Connection Pooling & maintenance to keep connections alive.
-	2. Query re-trying.
-	3. Optional tracing, logging and instrumentation features to your Gremlin queries.
+
+1. Connection Pooling & maintenance to keep connections alive.
+
+2. Query re-trying.
+
+3. Optional tracing, logging and instrumentation features to your Gremlin queries.
 
 The stack sits on top of a pool of connections to Gremlin, which wrap the Websocket connections defined by ["github.com/gorilla/websocket"]("github.com/gorilla/websocket")
 
@@ -50,6 +53,7 @@ The arguments for NewGremlinStack perform the following functions:
 * verboseLogging denotes the verbosity of logs received from your gremlin server
 
 * pingInterval denotes how often (in seconds) the gremlin pool should refresh itself
+	* This keeps the Websocket connections alive; otherwise, if left inactive, they will close
 
 ### Querying the database
 

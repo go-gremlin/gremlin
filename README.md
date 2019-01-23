@@ -25,11 +25,17 @@ Using the Gremlin Stack allows you to include a number of features on top of the
 
 3. Optional tracing, logging and instrumentation features to your Gremlin queries.
 
+4. Locking features designed to handle concurrent modification
+	* Generic interface that allows multiple types of locks (i.e. distributed)
+	* Implemented default local `Lock` which uses a map of Mutexes
+		* When you run a query with the client, you are allowed to specify a vertexID to avoid concurrent exception issues
+		* If you do not specify an ID, it will not use the `Lock`
+
 The stack sits on top of a pool of connections to Gremlin, which wrap the Websocket connections defined by ["github.com/gorilla/websocket"]("github.com/gorilla/websocket")
 
 ### Creating the Gremlin Stack
 
-You can instantiate it using NewGremlinStack or NewGremlinStackSimple (which excludes tracing, logging and instrumentation):
+You can instantiate it using NewGremlinStack or NewGremlinStackSimple (which excludes tracing, logging, instrumentation and the non-local locking mechanism):
 ```go
 	gremlinServer := "ws://server1:8182/gremlin"
 	maxPoolCapacity := 10

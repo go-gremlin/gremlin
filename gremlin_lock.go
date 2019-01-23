@@ -18,13 +18,13 @@ type Lock_i interface {
 
 // Creates a lock using a sync map
 type LocalLockClient struct {
-	Keys sync.Map
+	Keys *sync.Map
 }
 
 func NewLocalLockClient() *LocalLockClient {
 	keyMap := sync.Map{}
 	return &LocalLockClient{
-		Keys: keyMap,
+		Keys: &keyMap,
 	}
 }
 
@@ -64,6 +64,7 @@ func (lock LocalLock) Unlock() error {
 		return fmt.Errorf("Error loading key %s from lock.", lock.Key)
 	}
 	lockMutex.Unlock()
+	_, _ = lock.Client.Keys.LoadOrStore(lock.Key, lockVal)
 	return nil
 }
 

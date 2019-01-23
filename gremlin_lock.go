@@ -3,7 +3,6 @@ package gremlin
 import (
 	"fmt"
 	"sync"
-	"time"
 )
 
 type LockClient_i interface {
@@ -31,19 +30,15 @@ func NewLocalLockClient() *LocalLockClient {
 func (c *LocalLockClient) LockKey(key string) (Lock_i, error) {
 	_, _ = c.Keys.LoadOrStore(key, &sync.Mutex{})
 	lock := LocalLock{
-		Client:       c,
-		Key:          key,
-		LockWaitTime: DEFAULT_LOCK_WAIT_TIME,
-		MaxRetries:   DEFAULT_MAX_RETRIES,
+		Client: c,
+		Key:    key,
 	}
 	return lock, nil
 }
 
 type LocalLock struct {
-	Client       *LocalLockClient
-	Key          string
-	LockWaitTime time.Duration
-	MaxRetries   int
+	Client *LocalLockClient
+	Key    string
 }
 
 func (lock LocalLock) Lock() error {

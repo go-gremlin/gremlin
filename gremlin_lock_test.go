@@ -20,7 +20,7 @@ func TestLockClientLockKey(t *testing.T) {
 		t.Error("testKey was not created in Client map")
 		return
 	}
-	if lock.Key != key || lock.LockWaitTime != DEFAULT_LOCK_WAIT_TIME || lock.MaxRetries != DEFAULT_MAX_RETRIES {
+	if lock.Key != key {
 		t.Error("Config error in lock: ", lock)
 		return
 	}

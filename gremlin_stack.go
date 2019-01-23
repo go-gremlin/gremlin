@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
+
+	"github.com/cbinsights/gremlin/lock"
 )
 
 type Gremlin_i interface {
@@ -21,7 +23,7 @@ type GremlinStackOptions struct {
 	Logger         Logger_i
 	Tracer         opentracing.Tracer
 	Instr          InstrumentationProvider_i
-	LockClient     LockClient_i
+	LockClient     lock.LockClient_i
 }
 
 func NewGremlinStackSimple(urlStr string, maxCap int, maxRetries int, verboseLogging bool, pingInterval int, options ...OptAuth) (Gremlin_i, error) {
@@ -30,8 +32,8 @@ func NewGremlinStackSimple(urlStr string, maxCap int, maxRetries int, verboseLog
 		g   Gremlin_i
 	)
 
-	var lockClient LockClient_i
-	lockClient = NewLocalLockClient()
+	var lockClient lock.LockClient_i
+	lockClient = lock.NewLocalLockClient()
 	g, err = NewGremlinClient(urlStr, maxCap, maxRetries, verboseLogging, lockClient, options...)
 	if err != nil {
 		return nil, err
@@ -61,11 +63,11 @@ func NewGremlinStack(urlStr string, gremlinStackOptions GremlinStackOptions, aut
 	if gremlinStackOptions.PingInterval != 0 {
 		pingInterval = gremlinStackOptions.PingInterval
 	}
-	var lockClient LockClient_i
+	var lockClient lock.LockClient_i
 	if gremlinStackOptions.LockClient != nil {
 		lockClient = gremlinStackOptions.LockClient
 	} else {
-		lockClient = NewLocalLockClient()
+		lockClient = lock.NewLocalLockClient()
 	}
 
 	g, err = NewGremlinClient(urlStr, maxCap, maxRetries, verboseLogging, lockClient, authOptions...)

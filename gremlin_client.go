@@ -6,19 +6,21 @@ import (
 	"net"
 	"regexp"
 	"time"
+
+	"github.com/cbinsights/gremlin/lock"
 )
 
 type GremlinClient struct {
 	pool       *gremlinPool
 	urlStr     string
 	argRegexp  *regexp.Regexp
-	LockClient LockClient_i
+	LockClient lock.LockClient_i
 	maxRetries int
 	quit       chan struct{}
 	done       chan struct{}
 }
 
-func NewGremlinClient(urlStr string, maxCap int, maxRetries int, verboseLogging bool, lockClient LockClient_i, options ...OptAuth) (*GremlinClient, error) {
+func NewGremlinClient(urlStr string, maxCap int, maxRetries int, verboseLogging bool, lockClient lock.LockClient_i, options ...OptAuth) (*GremlinClient, error) {
 	newClientFn := func() (GoGremlin, error) {
 		return NewVerboseGremlinConnection(urlStr, verboseLogging, options...)
 	}
@@ -67,7 +69,7 @@ func (c *GremlinClient) execWithRetry(ctx context.Context, query string, queryId
 	)
 	hasKey := false
 	key := queryId
-	var lock Lock_i
+	var lock lock.Lock_i
 	if key != "" {
 		lock, err = c.LockClient.LockKey(key)
 		hasKey = true
@@ -112,6 +114,7 @@ func (c *GremlinClient) execWithRetry(ctx context.Context, query string, queryId
 		rawResponse, err = client.ExecQuery(query)
 		if hasKey {
 			lock.Unlock()
+			lock.Destroy()
 		}
 		if err == nil { // success, break out of the retry loop
 			break

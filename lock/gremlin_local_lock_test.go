@@ -1,4 +1,4 @@
-package gremlin
+package lock
 
 import (
 	"fmt"

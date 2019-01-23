@@ -2,6 +2,7 @@ package gremlin
 
 import (
 	"bytes"
+	"strconv"
 )
 
 func CharSliceToMap(chars []rune) map[rune]bool {
@@ -24,6 +25,27 @@ func CoalesceStrings(s ...string) string {
 		}
 	}
 	return ""
+}
+
+func StringToBool(s string) bool {
+	b, _ := strconv.ParseBool(s)
+	return b
+}
+
+func InterfaceToBool(i interface{}) bool {
+	switch i.(interface{}).(type) {
+	case string:
+		return StringToBool(InterfaceToString(i))
+	case int, float64, float32:
+		if i == 1 {
+			return true
+		}
+		return false
+	case bool:
+		return i.(bool)
+	default:
+		return false
+	}
 }
 
 func EscapeArgs(args []interface{}, escapeFn func(string) string) []interface{} {

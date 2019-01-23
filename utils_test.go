@@ -61,6 +61,58 @@ func TestCoalesceStrings(t *testing.T) {
 	}
 }
 
+type StringToBoolHelper struct {
+	Given    string
+	Expected bool
+}
+
+func TestStringToBool(t *testing.T) {
+	tests := []StringToBoolHelper{
+		StringToBoolHelper{"true", true},
+		StringToBoolHelper{"True", true},
+		StringToBoolHelper{"false", false},
+		StringToBoolHelper{"False", false},
+		StringToBoolHelper{"1", true},
+		StringToBoolHelper{"0", false},
+		StringToBoolHelper{"", false},
+		StringToBoolHelper{"blah", false},
+	}
+	for _, test := range tests {
+		result := StringToBool(test.Given)
+		if result != test.Expected {
+			t.Error("given", test.Given, "expected", test.Expected, "result", result)
+		}
+	}
+}
+
+type InterfaceToBoolHelper struct {
+	Given    interface{}
+	Expected bool
+}
+
+func TestInterfaceToBool(t *testing.T) {
+	tests := []InterfaceToBoolHelper{
+		InterfaceToBoolHelper{"true", true},
+		InterfaceToBoolHelper{"True", true},
+		InterfaceToBoolHelper{"false", false},
+		InterfaceToBoolHelper{"False", false},
+		InterfaceToBoolHelper{"1", true},
+		InterfaceToBoolHelper{"0", false},
+		InterfaceToBoolHelper{1, true},
+		InterfaceToBoolHelper{0, false},
+		InterfaceToBoolHelper{false, false},
+		InterfaceToBoolHelper{true, true},
+		InterfaceToBoolHelper{"", false},
+		InterfaceToBoolHelper{"blah", false},
+	}
+	for _, test := range tests {
+		result := InterfaceToBool(test.Given)
+		if result != test.Expected {
+			t.Error("given", test.Given, "expected", test.Expected, "result", result)
+		}
+	}
+}
+
 func TestEscapeCharacters(t *testing.T) {
 	tests := [][]string{
 		{"this is a test", "this is a test"},

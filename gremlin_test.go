@@ -2,7 +2,6 @@ package gremlin
 
 import (
 	"context"
-	"sync"
 	"testing"
 )
 
@@ -24,8 +23,7 @@ func TestPoolMaintainsConnections(t *testing.T) {
 	defer pool.Close()
 
 	client := &GremlinClient{
-		pool:  pool,
-		mutex: &sync.Mutex{},
+		pool: pool,
 	}
 
 	for i := 1; i <= 10; i++ {

@@ -26,10 +26,6 @@ Using the Gremlin Stack allows you to include a number of features on top of the
 3. Optional tracing, logging and instrumentation features to your Gremlin queries.
 
 4. Locking features designed to handle concurrent modification
-	* Generic interface that allows multiple types of locks (i.e. distributed)
-	* Implemented default local `Lock` which uses a map of Mutexes
-		* When you run a query with the client, you are allowed to specify a vertexID to avoid concurrent exception issues
-		* If you do not specify an ID, it will not use the `Lock`
 
 The stack sits on top of a pool of connections to Gremlin, which wrap the Websocket connections defined by ["github.com/gorilla/websocket"]("github.com/gorilla/websocket")
 
@@ -151,6 +147,35 @@ In addition, there are provided utilities to convert to "CleanVertexes" and "Cle
 
 `ConvertToCleanVertexes()` converts a `Vertex` object as seen above into a much simpler `CleanVertex` with only an ID and a Label
 `ConvertToCleanEdges()` converts an `Edge` object as seen above into a much simpler `CleanEdge` with only an ID and a Label
+
+
+### Locking
+
+The Gremlin client is designed to accept a `LockClient` interface, with a client that implements a `LockKey(key string)` function to retrieve a `Lock` from the client.
+
+The `Lock` interface implements 3 functions:
+
+* `Lock()` which locks the corresponding key. If another `Lock` has locked the key, then the `Lock` will wait until the key is free.
+* `Unlock()` which unlocks the corresponding key.
+* `Destroy()` which removes the corresponding key from the client store.
+
+In addition to the generic interface, two implementations have been provided, a local implementation and one for Consul.
+
+#### Local Lock
+
+The local lock uses a Map of Mutexes, so that for a given LocalKey passed in by the query, the Mutex will lock writes on that key. For instance, if we are operating on
+a Vertex and expect simultaneous writes to that Vertex's properties, we can lock the Mutex corresponding to the Vertex ID to avoid a ConcurrentModificationException.
+
+However, this system only works for a single client, so a distributed system, or a system with multiple writer clients will still be at risk of concurrency exceptions.
+
+
+#### Consul Lock
+
+The Consul lock uses the Consul API to prevent ConcurrentModificationExceptions. Similar to the Local Lock, we can pass in a Vertex ID to avoid a ConcurrentModificationException.
+But, instead of writing to a local Map, it writes to Consul's KV configs, acquiring and releasing the corresponding configs as necessary, with a timeout to ensure that operations running too long, or operations that have been cancelled, do not retain their lock on the key.
+
+For more information about Consul Distributed Key implementations, check the [Consul API docs](https://godoc.org/github.com/hashicorp/consul/api#Lock) and this [quick implementation guide](https://medium.com/@mthenw/distributed-locks-with-consul-and-golang-c4eccc217dd5)
+
 
 
 ### Limitations

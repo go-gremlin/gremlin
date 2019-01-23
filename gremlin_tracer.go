@@ -28,11 +28,11 @@ func StartSpanFromParent(ctx context.Context, tracer opentracing.Tracer, method 
 	return span, opentracing.ContextWithSpan(ctx, span)
 }
 
-func (g GremlinTracer) ExecQueryF(ctx context.Context, query string, args ...interface{}) (response string, err error) {
+func (g GremlinTracer) ExecQueryF(ctx context.Context, gremlinQuery GremlinQuery) (response string, err error) {
 	method := CoalesceStrings(OpNameFromContext(ctx), "Gremlin.ExecQueryF")
 	span, _ := StartSpanFromParent(ctx, g.tracer, method, opentracing.Tags{"type": "gremlin"})
 	defer span.Finish()
-	return g.next.ExecQueryF(ctx, query, args...)
+	return g.next.ExecQueryF(ctx, gremlinQuery)
 }
 
 func (g GremlinTracer) StartMonitor(ctx context.Context, interval time.Duration) (err error) {

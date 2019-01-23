@@ -28,7 +28,7 @@ func NewGremlinInstr(next Gremlin_i, instr InstrumentationProvider_i) GremlinIns
 	}
 }
 
-func (g GremlinInstr) ExecQueryF(ctx context.Context, query string, args ...interface{}) (response string, err error) {
+func (g GremlinInstr) ExecQueryF(ctx context.Context, gremlinQuery GremlinQuery) (response string, err error) {
 	method := CoalesceStrings(OpNameFromContext(ctx), "Gremlin.ExecQueryF")
 	defer func() {
 		g.instr.Incr(method, EmptyTags(), 1)
@@ -36,7 +36,7 @@ func (g GremlinInstr) ExecQueryF(ctx context.Context, query string, args ...inte
 			g.instr.Incr(fmt.Sprintf("%s.Error", method), EmptyTags(), 1)
 		}
 	}()
-	return g.next.ExecQueryF(ctx, query, args...)
+	return g.next.ExecQueryF(ctx, gremlinQuery)
 }
 
 func (g GremlinInstr) StartMonitor(ctx context.Context, interval time.Duration) (err error) {

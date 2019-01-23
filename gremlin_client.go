@@ -43,16 +43,16 @@ func NewGremlinClient(urlStr string, maxCap int, maxRetries int, verboseLogging 
 	return c, nil
 }
 
-func (c *GremlinClient) ExecQueryF(ctx context.Context, query string, args ...interface{}) (string, error) {
-	args = EscapeArgs(args, EscapeGremlin)
+func (c *GremlinClient) ExecQueryF(ctx context.Context, gremlinQuery GremlinQuery) (string, error) {
+	args := EscapeArgs(gremlinQuery.Args, EscapeGremlin)
 	for _, arg := range args {
 		// if the argument is not a string (i.e. an int) or matches the regex string, then we're good
 		if InterfaceToString(arg) != "" && !c.argRegexp.MatchString(InterfaceToString(arg)) {
 			return "", fmt.Errorf("Invalid character in your query argument: %s", InterfaceToString(arg))
 		}
 	}
-	query = fmt.Sprintf(query, args...)
-	rawResponse, err := c.execWithRetry(ctx, query)
+	query := fmt.Sprintf(gremlinQuery.Query, args...)
+	rawResponse, err := c.execWithRetry(ctx, query, gremlinQuery.LockKey)
 	if err != nil {
 		return "", err
 	}
@@ -60,17 +60,17 @@ func (c *GremlinClient) ExecQueryF(ctx context.Context, query string, args ...in
 	return string(rawResponse), nil
 }
 
-func (c *GremlinClient) execWithRetry(ctx context.Context, query string, queryId ...string) (rawResponse []byte, err error) {
+func (c *GremlinClient) execWithRetry(ctx context.Context, query string, queryId string) (rawResponse []byte, err error) {
 	var (
 		client GoGremlin
 		tryNum = 1
 	)
 	hasKey := false
-	key := ""
+	key := queryId
 	var lock Lock_i
-	if len(queryId) > 0 {
-		key = queryId[0]
+	if key != "" {
 		lock, err = c.LockClient.LockKey(key)
+		hasKey = true
 		if err != nil {
 			return nil, err
 		}

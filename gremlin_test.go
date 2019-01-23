@@ -27,7 +27,10 @@ func TestPoolMaintainsConnections(t *testing.T) {
 	}
 
 	for i := 1; i <= 10; i++ {
-		client.ExecQueryF(context.Background(), `g.V()`)
+		query := GremlinQuery{
+			Query: `g.V()`,
+		}
+		client.ExecQueryF(context.Background(), query)
 		gotLen := pool.Len()
 		assert(t, gotLen == max, "expected", max, "got", gotLen)
 	}

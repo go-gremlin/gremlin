@@ -22,16 +22,17 @@ func NewGremlinLogger(next Gremlin_i, logger Logger_i) GremlinLogger {
 	}
 }
 
-func (g GremlinLogger) ExecQueryF(ctx context.Context, query string, args ...interface{}) (response string, err error) {
+func (g GremlinLogger) ExecQueryF(ctx context.Context, gremlinQuery GremlinQuery) (response string, err error) {
 	method := CoalesceStrings(OpNameFromContext(ctx), "Gremlin.ExecQueryF")
 	defer func(begin time.Time) {
+		logQuery := fmt.Sprintf(gremlinQuery.Query, gremlinQuery.Args...)
 		if err != nil {
-			g.logger.Log("level", "error", "message", fmt.Sprintf("%s completed in %v with error: %v, with query: %s", method, time.Since(begin), err, fmt.Sprintf(query, args...)))
+			g.logger.Log("level", "error", "message", fmt.Sprintf("%s completed in %v with error: %v, with query: %s", method, time.Since(begin), err, logQuery))
 		} else {
-			g.logger.Log("level", "debug", "message", fmt.Sprintf("%s completed in %v with query: %s", method, time.Since(begin), fmt.Sprintf(query, args...)))
+			g.logger.Log("level", "debug", "message", fmt.Sprintf("%s completed in %v with query: %s", method, time.Since(begin), logQuery))
 		}
 	}(time.Now())
-	return g.next.ExecQueryF(ctx, query, args...)
+	return g.next.ExecQueryF(ctx, gremlinQuery)
 }
 
 func (g GremlinLogger) StartMonitor(ctx context.Context, interval time.Duration) (err error) {

@@ -1,5 +1,11 @@
 package gremlin
 
+type GremlinQuery struct {
+	Query   string
+	Args    []interface{}
+	LockKey string
+}
+
 // cbi made up, not a real graphson or gremlin thing
 type GremlinResponse struct {
 	V Vertexes

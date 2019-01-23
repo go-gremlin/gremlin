@@ -8,7 +8,7 @@ import (
 )
 
 type Gremlin_i interface {
-	ExecQueryF(ctx context.Context, query string, args ...interface{}) (response string, err error)
+	ExecQueryF(ctx context.Context, gremlinQuery GremlinQuery) (response string, err error)
 	StartMonitor(ctx context.Context, interval time.Duration) (err error)
 	Close(ctx context.Context) (err error)
 }
@@ -18,10 +18,10 @@ type GremlinStackOptions struct {
 	MaxRetries     int
 	VerboseLogging bool
 	PingInterval   int
-	Logger         *Logger_i
-	Tracer         *opentracing.Tracer
-	Instr          *InstrumentationProvider_i
-	LockClient     *LockClient_i
+	Logger         Logger_i
+	Tracer         opentracing.Tracer
+	Instr          InstrumentationProvider_i
+	LockClient     LockClient_i
 }
 
 func NewGremlinStackSimple(urlStr string, maxCap int, maxRetries int, verboseLogging bool, pingInterval int, options ...OptAuth) (Gremlin_i, error) {
@@ -63,7 +63,7 @@ func NewGremlinStack(urlStr string, gremlinStackOptions GremlinStackOptions, aut
 	}
 	var lockClient LockClient_i
 	if gremlinStackOptions.LockClient != nil {
-		lockClient = *gremlinStackOptions.LockClient
+		lockClient = gremlinStackOptions.LockClient
 	} else {
 		lockClient = NewLocalLockClient()
 	}
@@ -73,13 +73,13 @@ func NewGremlinStack(urlStr string, gremlinStackOptions GremlinStackOptions, aut
 		return nil, err
 	}
 	if gremlinStackOptions.Logger != nil {
-		g = NewGremlinLogger(g, *gremlinStackOptions.Logger)
+		g = NewGremlinLogger(g, gremlinStackOptions.Logger)
 	}
 	if gremlinStackOptions.Tracer != nil {
-		g = NewGremlinTracer(g, *gremlinStackOptions.Tracer)
+		g = NewGremlinTracer(g, gremlinStackOptions.Tracer)
 	}
 	if gremlinStackOptions.Instr != nil {
-		g = NewGremlinInstr(g, *gremlinStackOptions.Instr)
+		g = NewGremlinInstr(g, gremlinStackOptions.Instr)
 	}
 
 	_ = g.StartMonitor(context.Background(), time.Duration(pingInterval))

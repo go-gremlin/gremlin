@@ -1,6 +1,7 @@
 package lock
 
 import (
+	b "encoding/base64"
 	"fmt"
 	"strings"
 
@@ -10,6 +11,7 @@ import (
 // The ConsulLock is an implementation of the LockClient_i/Lock_i structure
 // That is designed to be used in a distributed environment
 // It creates a Consul API client, which uses its native Lock struct to create & lock/unlock KVs
+
 type ConsulAPIWrapper struct {
 	DefaultConfig func() *consulapi.Config
 	NewClient     func(config *consulapi.Config) (*consulapi.Client, error)
@@ -63,14 +65,16 @@ func newConsulLockClient(address, baseFolder string, consulAPI ConsulAPIWrapper)
 }
 
 func (c ConsulLockClient) LockKey(key string) (Lock_i, error) {
+	lockKeyHash := b.StdEncoding.EncodeToString([]byte(key))
 	lockOptions := c.LockOptions
-	lockOptions.Key = makeFullKey(c.BaseFolder, key)
+	lockOptions.Key = makeFullKey(c.BaseFolder, lockKeyHash)
 	lockOpts, err := c.Client.LockOpts(lockOptions)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to create Consul lock for key %s with error: %v", key, err)
 	}
+
 	lock := ConsulLock{
-		Key:        key,
+		Key:        lockKeyHash,
 		ConsulLock: lockOpts,
 	}
 	return lock, nil

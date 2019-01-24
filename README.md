@@ -209,7 +209,7 @@ The Gremlin client forces some restraints on the characters allowed in a gremlin
 
 2. All whitespace characters
 
-3. The following punctuation: \, ;, ., :, /, -, ?, !, \*, (, ), &, \_, =, ,, #, ?, !, "
+3. The following punctuation: \, ;, ., :, /, -, ?, !, \*, (, ), &, \_, =, ,, #, ?, !, ", +
 
 
 Go-Gremlin Usage Notes

@@ -8,8 +8,8 @@ const (
 	// Gremlin client allows the following:
 	//     - all alphanumeric characters
 	//     - all whitespace charaters
-	//     - the following punctuation: \, ;, ., :, /, -, ?, !, *, (, ), &, _, =, ,, #, ?, !, "
-	ARG_REGEX = "^[\\d\\w\\s\\\\;\\.\\:\\/\\-\\?\\!\\*\\(\\)\\&\\_\\=\\,\\#\\?\\!\\'\\>\\<\"]+$"
+	//     - the following punctuation: \, ;, ., :, /, -, ?, !, *, (, ), &, _, =, ,, #, ?, !, ", +
+	ARG_REGEX = "^[\\d\\w\\s\\\\;\\.\\:\\/\\-\\?\\!\\*\\(\\)\\&\\_\\=\\,\\#\\?\\!\\'\\>\\<\"\\+]+$"
 
 	// Gremlin stack defaults
 	DEFAULT_MAX_CAP             = 10

@@ -116,11 +116,17 @@ func (c *GremlinClient) execWithRetry(ctx context.Context, query string, queryId
 		tryNum++
 
 		if hasKey {
-			lock.Lock()
+			err = lock.Lock()
+			if err != nil {
+				return nil, err
+			}
 		}
 		rawResponse, err = client.ExecQuery(query)
 		if hasKey {
-			lock.Unlock()
+			err = lock.Unlock()
+			if err != nil {
+				return nil, err
+			}
 			lock.Destroy()
 		}
 		if err == nil { // success, break out of the retry loop

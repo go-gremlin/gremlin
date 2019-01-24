@@ -57,6 +57,30 @@ The arguments for NewGremlinStack perform the following functions:
 * pingInterval denotes how often (in seconds) the gremlin pool should refresh itself
 	* This keeps the Websocket connections alive; otherwise, if left inactive, they will close
 
+#### Stack Options
+
+In addition to the NewGremlinStackSimple, you can call a stack that includes tracing, logging, instrumentation and locking elements, using a helper struct: `GremlinStackOptions`:
+
+The struct is defined as below:
+```go
+	type GremlinStackOptions struct {
+		MaxCap         int
+		MaxRetries     int
+		VerboseLogging bool
+		PingInterval   int
+		Logger         Logger_i
+		Tracer         opentracing.Tracer
+		Instr          InstrumentationProvider_i
+		LockClient     lock.LockClient_i
+	}
+```
+
+Note that any of MaxCap, MaxRetries, VerboseLogging and PingInterval left nil will be set to defaults.
+
+If the LockClient is nil, it will default to using the `LocalLockClient`.
+
+Logger, Tracer and Instr are ignored if nil.
+
 ### Querying the database
 
 To query the database, using your stack, call `ExecQueryF()`, which requires a Context.context object:
@@ -175,7 +199,6 @@ The Consul lock uses the Consul API to prevent ConcurrentModificationExceptions.
 But, instead of writing to a local Map, it writes to Consul's KV configs, acquiring and releasing the corresponding configs as necessary, with a timeout to ensure that operations running too long, or operations that have been cancelled, do not retain their lock on the key.
 
 For more information about Consul Distributed Key implementations, check the [Consul API docs](https://godoc.org/github.com/hashicorp/consul/api#Lock) and this [quick implementation guide](https://medium.com/@mthenw/distributed-locks-with-consul-and-golang-c4eccc217dd5)
-
 
 
 ### Limitations

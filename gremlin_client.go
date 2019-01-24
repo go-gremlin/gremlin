@@ -62,22 +62,29 @@ func (c *GremlinClient) ExecQueryF(ctx context.Context, gremlinQuery GremlinQuer
 	return string(rawResponse), nil
 }
 
+func getLock(c *GremlinClient, key string) (lock.Lock_i, bool, error) {
+	hasKey := false
+	var lock lock.Lock_i
+	if key == "" {
+		return lock, hasKey, nil
+	}
+	lock, err := c.LockClient.LockKey(key)
+	if err != nil {
+		return nil, false, err
+	}
+	return lock, true, nil
+}
+
 func (c *GremlinClient) execWithRetry(ctx context.Context, query string, queryId string) (rawResponse []byte, err error) {
 	var (
 		client GoGremlin
 		tryNum = 1
 	)
 	hasKey := false
-	key := queryId
-	var lock lock.Lock_i
-	if key != "" {
-		lock, err = c.LockClient.LockKey(key)
-		hasKey = true
-		if err != nil {
-			return nil, err
-		}
+	lock, hasKey, err := getLock(c, queryId)
+	if err != nil {
+		return nil, err
 	}
-
 	for {
 		select {
 		case <-ctx.Done():

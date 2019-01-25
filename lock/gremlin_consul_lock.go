@@ -29,15 +29,15 @@ type ConsulLock struct {
 	LockCh     <-chan struct{}
 }
 
-func NewConsulLockClient(address, baseFolder string) (ConsulLockClient, error) {
+func NewConsulLockClient(address, baseFolder string, lockOptions *consulapi.LockOptions) (ConsulLockClient, error) {
 	consulAPI := ConsulAPIWrapper{
 		DefaultConfig: consulapi.DefaultConfig,
 		NewClient:     consulapi.NewClient,
 	}
-	return newConsulLockClient(address, baseFolder, consulAPI)
+	return newConsulLockClient(address, baseFolder, consulAPI, lockOptions)
 }
 
-func newConsulLockClient(address, baseFolder string, consulAPI ConsulAPIWrapper) (ConsulLockClient, error) {
+func newConsulLockClient(address, baseFolder string, consulAPI ConsulAPIWrapper, lockOptions *consulapi.LockOptions) (ConsulLockClient, error) {
 	var (
 		err          error
 		lock         ConsulLockClient
@@ -59,7 +59,7 @@ func newConsulLockClient(address, baseFolder string, consulAPI ConsulAPIWrapper)
 		return lock, fmt.Errorf("Unable to get consul config")
 	}
 	lock.Client = consulClient
-	lock.LockOptions = &consulapi.LockOptions{}
+	lock.LockOptions = lockOptions
 	lock.BaseFolder = baseFolder
 	return lock, nil
 }

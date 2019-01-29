@@ -1,6 +1,7 @@
 package lock
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -60,11 +61,7 @@ func (lock LocalLock) Unlock() error {
 	var m *sync.Mutex
 	val, found := lock.Client.Keys.Get(lock.Key)
 	if !found {
-		m = &sync.Mutex{}
-		err := lock.Client.Keys.Add(lock.Key, m, lock.Client.ExpirationTime)
-		if err != nil {
-			return err
-		}
+		return fmt.Errorf("Unlock mutex not found.")
 	} else {
 		m = val.(*sync.Mutex)
 	}

@@ -9,7 +9,7 @@ import (
 
 // The LocalLock is an implementation of the LockClient_i/Lock_i structure
 // That is designed to be used in a non-distributed environment
-// It uses a sync Map of Mutexes which are locked and unlocked according to a specified key
+// It uses a cache of Mutexes which are locked and unlocked according to a specified key
 type LocalLockClient struct {
 	Keys           *c.Cache
 	ExpirationTime time.Duration

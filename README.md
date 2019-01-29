@@ -187,7 +187,7 @@ In addition to the generic interface, two implementations have been provided, a 
 
 #### Local Lock
 
-The local lock uses a Map of Mutexes, so that for a given LocalKey passed in by the query, the Mutex will lock writes on that key. For instance, if we are operating on
+The local lock uses a Cache of Mutexes (from [go-cache](https://github.com/patrickmn/go-cache), so that for a given LocalKey passed in by the query, the Mutex will lock writes on that key. For instance, if we are operating on
 a Vertex and expect simultaneous writes to that Vertex's properties, we can lock the Mutex corresponding to the Vertex ID to avoid a ConcurrentModificationException.
 
 However, this system only works for a single client, so a distributed system, or a system with multiple writer clients will still be at risk of concurrency exceptions.
@@ -201,6 +201,13 @@ But, instead of writing to a local Map, it writes to Consul's KV configs, acquir
 For more information about Consul Distributed Key implementations, check the [Consul API docs](https://godoc.org/github.com/hashicorp/consul/api#Lock) and this [quick implementation guide](https://medium.com/@mthenw/distributed-locks-with-consul-and-golang-c4eccc217dd5)
 
 
+#### Consul Combination Lock
+
+The Consul Combination lock is a union of both the Local and Consul Locks, designed to handle the speed issues inherent in polling Consul.
+
+Like the local lock, it implements a
+
+
 ### Limitations
 
 The Gremlin client forces some restraints on the characters allowed in a gremlin query to avoid issues with the query syntax. Currently the allowed characters are:
@@ -210,6 +217,12 @@ The Gremlin client forces some restraints on the characters allowed in a gremlin
 2. All whitespace characters
 
 3. The following punctuation: \, ;, ., :, /, -, ?, !, \*, (, ), &, \_, =, ,, #, ?, !, ", +
+
+
+Dependency Notes
+---------------
+
+This package uses a modification of [go-cache](https://github.com/patrickmn/go-cache) stored locally in the vendor file. A forked repo is forthcoming. This allows us to update the Expiration for an item in the local lock so that the expiration does not time out while an object is holding it.
 
 
 Go-Gremlin Usage Notes

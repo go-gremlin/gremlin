@@ -4,6 +4,9 @@ import (
 	consulapi "github.com/hashicorp/consul/api"
 )
 
+// This lock is a more complicated implementation of the Local Lock and the Consul Lock
+// It is designed to be implemented on a distributed system, with less strain on Consul than the pure Consul lock
+
 type ConsulCombinationLockClient struct {
 	ConsulClient *ConsulLockClient
 	LocalClient  *LocalLockClient

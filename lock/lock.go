@@ -16,5 +16,4 @@ type LockClient_i interface {
 type Lock_i interface {
 	Lock() error
 	Unlock() error
-	Destroy() error
 }

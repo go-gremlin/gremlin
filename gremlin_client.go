@@ -10,17 +10,6 @@ import (
 	"github.com/cbinsights/gremlin/lock"
 )
 
-var maxTime = time.Duration(0)
-var queryTimes []time.Duration
-
-func avgTimeSlice(queryTimes []time.Duration) int64 {
-	sum := time.Duration(0)
-	for _, t := range queryTimes {
-		sum += t
-	}
-	return int64(sum) / int64(len(queryTimes))
-}
-
 type GremlinClient struct {
 	pool       *gremlinPool
 	urlStr     string
@@ -127,21 +116,10 @@ func (c *GremlinClient) execWithRetry(ctx context.Context, query string, queryId
 		tryNum++
 
 		if hasKey {
-			fmt.Printf("Attempting to acquire lock for key: %v\n", queryId)
-			acq := time.Now()
 			err = lock.Lock()
 			if err != nil {
 				return nil, err
 			}
-			t := time.Since(acq)
-			fmt.Printf("Acquired lock for key %v after %v\n", queryId, t)
-			queryTimes = append(queryTimes, t)
-			if t > maxTime {
-				maxTime = t
-				fmt.Printf("New longest query: %v\n", maxTime)
-
-			}
-			fmt.Printf("Average query time: %v\n", time.Duration(avgTimeSlice(queryTimes)))
 		}
 		rawResponse, err = client.ExecQuery(query)
 		if hasKey {

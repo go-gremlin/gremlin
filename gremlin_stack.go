@@ -33,7 +33,7 @@ func NewGremlinStackSimple(urlStr string, maxCap int, maxRetries int, verboseLog
 	)
 
 	var lockClient lock.LockClient_i
-	lockClient = lock.NewLocalLockClient()
+	lockClient = lock.NewLocalLockClient(5, 10)
 	g, err = NewGremlinClient(urlStr, maxCap, maxRetries, verboseLogging, lockClient, options...)
 	if err != nil {
 		return nil, err
@@ -67,7 +67,7 @@ func NewGremlinStack(urlStr string, gremlinStackOptions GremlinStackOptions, aut
 	if gremlinStackOptions.LockClient != nil {
 		lockClient = gremlinStackOptions.LockClient
 	} else {
-		lockClient = lock.NewLocalLockClient()
+		lockClient = lock.NewLocalLockClient(5, 10)
 	}
 
 	g, err = NewGremlinClient(urlStr, maxCap, maxRetries, verboseLogging, lockClient, authOptions...)

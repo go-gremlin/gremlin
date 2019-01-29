@@ -59,6 +59,7 @@ func newConsulLockClient(address, baseFolder string, consulAPI ConsulAPIWrapper,
 		return lock, fmt.Errorf("Unable to get consul config")
 	}
 	lock.Client = consulClient
+
 	lock.LockOptions = lockOptions
 	lock.BaseFolder = baseFolder
 	return lock, nil
@@ -99,9 +100,9 @@ func (lock ConsulLock) Lock() error {
 }
 
 func (lock ConsulLock) Unlock() error {
-	return lock.ConsulLock.Unlock()
-}
-
-func (lock ConsulLock) Destroy() error {
+	err := lock.ConsulLock.Unlock()
+	if err != nil {
+		return err
+	}
 	return lock.ConsulLock.Destroy()
 }

@@ -7,7 +7,7 @@ import (
 )
 
 func TestLockClientLockKey(t *testing.T) {
-	c := NewLocalLockClient()
+	c := NewLocalLockClient(5, 10)
 	key := "testKey"
 	lockI, err := c.LockKey(key)
 	lock := lockI.(LocalLock)
@@ -15,7 +15,7 @@ func TestLockClientLockKey(t *testing.T) {
 		t.Error(fmt.Sprintf("Failed to create Lock with following error: %s", err))
 		return
 	}
-	_, ok := c.Keys.Load(key)
+	_, ok := c.Keys.Get(key)
 	if !ok {
 		t.Error("testKey was not created in Client map")
 		return
@@ -27,7 +27,7 @@ func TestLockClientLockKey(t *testing.T) {
 }
 
 func TestClientLockWorks(t *testing.T) {
-	c := NewLocalLockClient()
+	c := NewLocalLockClient(5, 10)
 	key := "testKey"
 	var vals []int
 
@@ -61,7 +61,7 @@ func TestClientLockWorks(t *testing.T) {
 }
 
 func TestClientLockWorksAdvanced(t *testing.T) {
-	c := NewLocalLockClient()
+	c := NewLocalLockClient(5, 10)
 	key := "testKey"
 	key3 := "testKey3"
 	var vals []int

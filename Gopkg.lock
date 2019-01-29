@@ -77,6 +77,14 @@
   version = "v1.0.2"
 
 [[projects]]
+  digest = "1:808cdddf087fb64baeae67b8dfaee2069034d9704923a3cb8bd96a995421a625"
+  name = "github.com/patrickmn/go-cache"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "a3647f8e31d79543b2d0f0ae2fe5c379d72cedc0"
+  version = "v2.1.0"
+
+[[projects]]
   branch = "master"
   digest = "1:76ee51c3f468493aff39dbacc401e8831fbb765104cbf613b89bef01cf4bad70"
   name = "golang.org/x/net"
@@ -92,6 +100,7 @@
     "github.com/gorilla/websocket",
     "github.com/hashicorp/consul/api",
     "github.com/opentracing/opentracing-go",
+    "github.com/patrickmn/go-cache",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

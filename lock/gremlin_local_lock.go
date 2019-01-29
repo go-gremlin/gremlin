@@ -1,26 +1,33 @@
 package lock
 
 import (
-	"fmt"
 	"sync"
+	"time"
+
+	c "github.com/patrickmn/go-cache"
 )
 
 // The LocalLock is an implementation of the LockClient_i/Lock_i structure
 // That is designed to be used in a non-distributed environment
 // It uses a sync Map of Mutexes which are locked and unlocked according to a specified key
 type LocalLockClient struct {
-	Keys *sync.Map
+	Keys           *c.Cache
+	ExpirationTime time.Duration
 }
 
-func NewLocalLockClient() *LocalLockClient {
-	keyMap := sync.Map{}
+func NewLocalLockClient(expirationTime, purgeTime int) *LocalLockClient {
+	c := c.New(time.Duration(expirationTime)*time.Minute, time.Duration(purgeTime)*time.Minute)
 	return &LocalLockClient{
-		Keys: &keyMap,
+		Keys:           c,
+		ExpirationTime: time.Duration(expirationTime),
 	}
 }
 
 func (c *LocalLockClient) LockKey(key string) (Lock_i, error) {
-	_, _ = c.Keys.LoadOrStore(key, &sync.Mutex{})
+	_, found := c.Keys.Get(key)
+	if !found {
+		c.Keys.SetDefault(key, &sync.Mutex{})
+	}
 	lock := LocalLock{
 		Client: c,
 		Key:    key,
@@ -34,28 +41,34 @@ type LocalLock struct {
 }
 
 func (lock LocalLock) Lock() error {
-
-	lockVal, ok := lock.Client.Keys.Load(lock.Key)
-	lockMutex := lockVal.(*sync.Mutex)
-	if !ok || lockMutex == nil {
-		return fmt.Errorf("Error loading key %s from lock.", lock.Key)
+	var m *sync.Mutex
+	val, found := lock.Client.Keys.Get(lock.Key)
+	if !found {
+		m = &sync.Mutex{}
+		err := lock.Client.Keys.Add(lock.Key, m, lock.Client.ExpirationTime)
+		if err != nil {
+			return err
+		}
+	} else {
+		m = val.(*sync.Mutex)
 	}
-	lockMutex.Lock()
+	m.Lock()
 	return nil
 }
 
 func (lock LocalLock) Unlock() error {
-	lockVal, ok := lock.Client.Keys.Load(lock.Key)
-	lockMutex := lockVal.(*sync.Mutex)
-	if !ok || lockMutex == nil {
-		return fmt.Errorf("Error loading key %s from lock.", lock.Key)
-	}
-	lockMutex.Unlock()
-	_, _ = lock.Client.Keys.LoadOrStore(lock.Key, lockVal)
-	return nil
-}
 
-func (lock LocalLock) Destroy() error {
-	lock.Client.Keys.Delete(lock.Key)
+	var m *sync.Mutex
+	val, found := lock.Client.Keys.Get(lock.Key)
+	if !found {
+		m = &sync.Mutex{}
+		err := lock.Client.Keys.Add(lock.Key, m, lock.Client.ExpirationTime)
+		if err != nil {
+			return err
+		}
+	} else {
+		m = val.(*sync.Mutex)
+	}
+	m.Unlock()
 	return nil
 }

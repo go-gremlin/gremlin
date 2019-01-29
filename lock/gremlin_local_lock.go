@@ -42,7 +42,7 @@ type LocalLock struct {
 
 func (lock LocalLock) Lock() error {
 	var m *sync.Mutex
-	val, found := lock.Client.Keys.Get(lock.Key)
+	val, found := lock.Client.Keys.GetWithUpdateExpiration(lock.Key, lock.Client.ExpirationTime)
 	if !found {
 		m = &sync.Mutex{}
 		err := lock.Client.Keys.Add(lock.Key, m, lock.Client.ExpirationTime)
@@ -57,7 +57,6 @@ func (lock LocalLock) Lock() error {
 }
 
 func (lock LocalLock) Unlock() error {
-
 	var m *sync.Mutex
 	val, found := lock.Client.Keys.Get(lock.Key)
 	if !found {

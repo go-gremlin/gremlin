@@ -104,5 +104,6 @@ func (lock ConsulLock) Unlock() error {
 	if err != nil {
 		return err
 	}
-	return lock.ConsulLock.Destroy()
+	lock.ConsulLock.Destroy()
+	return nil
 }

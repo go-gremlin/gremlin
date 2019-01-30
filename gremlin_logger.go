@@ -27,9 +27,9 @@ func (g GremlinLogger) ExecQueryF(ctx context.Context, gremlinQuery GremlinQuery
 	defer func(begin time.Time) {
 		logQuery := fmt.Sprintf(gremlinQuery.Query, gremlinQuery.Args...)
 		if err != nil {
-			g.logger.Log("level", "error", "message", fmt.Sprintf("%s completed in %v with error: %v, with query: %s", method, time.Since(begin), err, logQuery))
+			g.logger.Log("level", "error", "message", fmt.Sprintf("%s completed in %v with error: %v, with query: %s and Lock Key: %s", method, time.Since(begin), err, logQuery, gremlinQuery.LockKey))
 		} else {
-			g.logger.Log("level", "debug", "message", fmt.Sprintf("%s completed in %v with query: %s", method, time.Since(begin), logQuery))
+			g.logger.Log("level", "debug", "message", fmt.Sprintf("%s completed in %v with query: %s and Lock Key: %s", method, time.Since(begin), logQuery, gremlinQuery.LockKey))
 		}
 	}(time.Now())
 	return g.next.ExecQueryF(ctx, gremlinQuery)

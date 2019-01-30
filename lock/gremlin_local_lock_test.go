@@ -7,7 +7,7 @@ import (
 )
 
 func TestLockClientLockKey(t *testing.T) {
-	c := NewLocalLockClient(5, 10)
+	c := NewLocalLockClient()
 	key := "testKey"
 	lockI, err := c.LockKey(key)
 	lock := lockI.(LocalLock)
@@ -27,7 +27,7 @@ func TestLockClientLockKey(t *testing.T) {
 }
 
 func TestClientLockWorks(t *testing.T) {
-	c := NewLocalLockClient(5, 10)
+	c := NewLocalLockClient()
 	key := "testKey"
 	var vals []int
 
@@ -61,7 +61,7 @@ func TestClientLockWorks(t *testing.T) {
 }
 
 func TestClientLockWorksAdvanced(t *testing.T) {
-	c := NewLocalLockClient(5, 10)
+	c := NewLocalLockClient()
 	key := "testKey"
 	key3 := "testKey3"
 	var vals []int

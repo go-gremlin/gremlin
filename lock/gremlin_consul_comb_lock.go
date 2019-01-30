@@ -1,10 +1,12 @@
 package lock
 
 import (
+	"fmt"
+
 	consulapi "github.com/hashicorp/consul/api"
 )
 
-// This lock is a more complicated implementation of the Local Lock and the Consul Lock
+// This lock is a dual implementation of the Local Lock and the Consul Lock
 // It is designed to be implemented on a distributed system, with less strain on Consul than the pure Consul lock
 
 type ConsulCombinationLockClient struct {
@@ -17,12 +19,12 @@ type ConsulCombinationLock struct {
 	LocalLock  LocalLock
 }
 
-func NewConsulCombinationLockClient(consulAddress, consulBaseFolder string, consulLockOptions *consulapi.LockOptions, localExpirationTime, localPurgeTime int) (*ConsulCombinationLockClient, error) {
+func NewConsulCombinationLockClient(consulAddress, consulBaseFolder string, consulLockOptions *consulapi.LockOptions) (*ConsulCombinationLockClient, error) {
 	consulClient, err := NewConsulLockClient(consulAddress, consulBaseFolder, consulLockOptions)
 	if err != nil {
 		return nil, err
 	}
-	localClient := NewLocalLockClient(localExpirationTime, localPurgeTime)
+	localClient := NewLocalLockClient()
 	return &ConsulCombinationLockClient{
 		ConsulClient: &consulClient,
 		LocalClient:  localClient,
@@ -54,10 +56,17 @@ func (lock ConsulCombinationLock) Lock() error {
 }
 
 func (lock ConsulCombinationLock) Unlock() error {
+	errResponse := ""
 	err := lock.ConsulLock.Unlock()
 	if err != nil {
-		return err
+		errResponse = fmt.Sprintf("Consul unlock error: %v", err)
 	}
 	err = lock.LocalLock.Unlock()
-	return err
+	if err != nil {
+		errResponse = fmt.Sprintf("%s. Local unlock error: %v", errResponse, err)
+	}
+	if err != nil {
+		return fmt.Errorf(errResponse)
+	}
+	return nil
 }

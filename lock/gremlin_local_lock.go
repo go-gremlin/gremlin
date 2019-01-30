@@ -16,11 +16,10 @@ type LocalLockClient struct {
 	ExpirationTime time.Duration
 }
 
-func NewLocalLockClient(expirationTime, purgeTime int) *LocalLockClient {
-	c := c.New(time.Duration(expirationTime)*time.Minute, time.Duration(purgeTime)*time.Minute)
+func NewLocalLockClient() *LocalLockClient {
+	c := c.New(time.Duration(-1), time.Duration(-1))
 	return &LocalLockClient{
-		Keys:           c,
-		ExpirationTime: time.Duration(expirationTime),
+		Keys: c,
 	}
 }
 
@@ -43,7 +42,7 @@ type LocalLock struct {
 
 func (lock LocalLock) Lock() error {
 	var m *sync.Mutex
-	val, found := lock.Client.Keys.GetWithUpdateExpiration(lock.Key, lock.Client.ExpirationTime)
+	val, found := lock.Client.Keys.Get(lock.Key)
 	if !found {
 		m = &sync.Mutex{}
 		err := lock.Client.Keys.Add(lock.Key, m, lock.Client.ExpirationTime)

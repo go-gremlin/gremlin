@@ -219,12 +219,6 @@ The Gremlin client forces some restraints on the characters allowed in a gremlin
 3. The following punctuation: \, ;, ., :, /, -, ?, !, \*, (, ), &, \_, =, ,, #, ?, !, ", +
 
 
-Dependency Notes
----------------
-
-This package uses a modification of [go-cache](https://github.com/patrickmn/go-cache) stored locally in the vendor file. A forked repo is forthcoming. This allows us to update the Expiration for an item in the local lock so that the expiration does not time out while an object is holding it.
-
-
 Go-Gremlin Usage Notes
 ---------
 Note: This is the usage defined by the library from which this is forked ([github.com/go-gremlin/gremlin](github.com/go-gremlin/gremlin))

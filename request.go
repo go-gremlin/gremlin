@@ -48,8 +48,8 @@ func GraphSONSerializer(req *Request) ([]byte, error) {
 }
 
 func NewFormattedReq(req *Request) FormattedReq {
-	rId := map[string]string{"@type": "g:UUID", "@value": req.RequestId}
-	sr := FormattedReq{RequestId: rId, Processor: req.Processor, Op: req.Op, Args: req.Args}
+	// rId := map[string]string{"@type": "g:UUID", "@value": req.RequestId}
+	sr := FormattedReq{RequestId: req.RequestId, Processor: req.Processor, Op: req.Op, Args: req.Args}
 
 	return sr
 }

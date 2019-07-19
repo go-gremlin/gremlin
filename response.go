@@ -9,6 +9,7 @@ type Response struct {
 	RequestId string          `json:"requestId"`
 	Status    *ResponseStatus `json:"status"`
 	Result    *ResponseResult `json:"result"`
+	Err       error
 }
 
 type ResponseStatus struct {

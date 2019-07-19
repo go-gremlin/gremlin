@@ -1,5 +1,7 @@
 package gremlin
 
+import "errors"
+
 const (
 	StatusSuccess                  = 200
 	StatusNoContent                = 204
@@ -24,3 +26,7 @@ var ErrorMsg = map[int]string{
 	StatusServerTimeout:            "Server Timeout",
 	StatusServerSerializationError: "Server Serialization Error",
 }
+var (
+	ErrConnectionClosed = errors.New("gremlin connection closed")
+	ErrClosing          = errors.New("gremlin is closeing")
+)

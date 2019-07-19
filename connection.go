@@ -209,6 +209,7 @@ func (c *Client) recvLoop() (err error) {
 		var items []json.RawMessage
 		switch res.Status.Code {
 		case StatusNoContent:
+			res.Result.Data = make([]byte, 0)
 			c.lock.Lock()
 			if request, ok := c.requests[res.RequestId]; ok {
 				delete(c.requests, res.RequestId)

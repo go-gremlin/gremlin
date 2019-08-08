@@ -4,12 +4,15 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/cenkalti/backoff"
+	"github.com/orkusinc/api/common/utils"
 	"golang.org/x/net/websocket"
 )
 
@@ -33,16 +36,18 @@ type Connection struct {
 }
 
 func NewClient(urlStr string, origin string, maxConn []int, options ...OptAuth) (*Pool, error) {
-	// Check if connection is possible
-	_, err := websocket.Dial(urlStr, "", origin)
-	if err != nil {
-		return nil, err
-	}
 	pool := &Pool{
 		urlStr: urlStr,
 		origin: origin,
 		Auth:   options,
 	}
+
+	// Check if connection is possible and close it
+	ws, err := pool.createSocket()
+	if err != nil {
+		return nil, err
+	}
+	ws.Close()
 	// Can make maxConn as an optional since we already have optional arguments here
 	if len(maxConn) > 0 {
 		pool.MaxConnections = maxConn[0]
@@ -65,16 +70,36 @@ func NewClient(urlStr string, origin string, maxConn []int, options ...OptAuth) 
 	return pool, nil
 }
 
-func (p *Pool) createSocket() (*websocket.Conn, error) {
-	ws, err := websocket.Dial(p.urlStr, "", p.origin)
+func (p *Pool) createSocket() (ws *websocket.Conn, err error) {
+	fmt.Println("create socket")
+	backoff.Retry(func() error {
+		ws, err = websocket.Dial(p.urlStr, "", p.origin)
+		return err
+	}, utils.OrkusExponentialBackOffInternal())
 	if err != nil {
-		return nil, err
+		return ws, err
 	}
+	fmt.Println("socket has been created")
 	return ws, nil
 }
 
-func (p *Pool) Get() (Connection, error) {
-	return <-p.Connections, nil
+func (p *Pool) Get() (Connection, error){
+	// Check if connection is possible
+	conn :=  <-p.Connections
+	// Open a TCP connection
+	requestMessage, err := GraphSONSerializer(Query(`g.E()`))
+	if err != nil {
+		return conn, err
+	}
+	if err := websocket.Message.Send(conn.ws, requestMessage); err != nil {
+		ws, err := p.createSocket() // here is backoff retry
+		if err != nil {
+			return conn, err
+		}
+		conn.ws = ws
+		fmt.Println("New connection is created")
+	}
+	return conn, nil
 }
 
 // Put - put used connection back to poll and get positive status if it's gone well
@@ -94,6 +119,7 @@ func (p *Pool) Exec(req *Request) ([]byte, error) {
 	}
 	requestMessage, err := GraphSONSerializer(req)
 	if err != nil {
+		fmt.Println("error in exec2")
 		return nil, err
 	}
 	// Open a TCP connection
@@ -102,6 +128,10 @@ func (p *Pool) Exec(req *Request) ([]byte, error) {
 	}
 
 	data, err := conn.ReadResponse()
+	if err != nil {
+		fmt.Println("error in exec2")
+		return nil, err
+	}
 	p.Put(conn)
 	return data, err
 }

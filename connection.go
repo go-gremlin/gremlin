@@ -4,17 +4,21 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 
+	orkuserr "github.com/orkusinc/api/common/errors"
+
 	"github.com/cenkalti/backoff"
+	"github.com/go-kit/kit/log"
 	"github.com/orkusinc/api/common/utils"
 	"golang.org/x/net/websocket"
 )
+
+const TheBigestMaxGremlinConnectionsLimit = 5
 
 // Clients include the necessary info to connect to the server and the underlying socket
 type Pool struct {
@@ -24,9 +28,8 @@ type Pool struct {
 	Auth           []OptAuth
 	// Connections    map[int]*Connection
 	Connections chan Connection
+	logger      log.Logger
 }
-
-const TheBigestMaxGremlinConnectionsLimit = 5
 
 type Connection struct {
 	id   int
@@ -35,11 +38,12 @@ type Connection struct {
 	pool *Pool
 }
 
-func NewClient(urlStr string, origin string, maxConn []int, options ...OptAuth) (*Pool, error) {
+func NewClient(logger log.Logger, urlStr string, origin string, maxConn []int, options ...OptAuth) (*Pool, error) {
 	pool := &Pool{
 		urlStr: urlStr,
 		origin: origin,
 		Auth:   options,
+		logger: logger,
 	}
 
 	// Check if connection is possible and close it
@@ -67,37 +71,40 @@ func NewClient(urlStr string, origin string, maxConn []int, options ...OptAuth) 
 		}
 		pool.Connections <- conn
 	}
+	pool.logger.Log("Gremlin connection pool has been created, socket count", pool.MaxConnections)
 	return pool, nil
 }
 
+// createSocket() holds backoff retry logic
 func (p *Pool) createSocket() (ws *websocket.Conn, err error) {
-	fmt.Println("create socket")
 	backoff.Retry(func() error {
+		orkuserr.PrintError(p.logger, "retrying to create socket", err)
 		ws, err = websocket.Dial(p.urlStr, "", p.origin)
 		return err
 	}, utils.OrkusExponentialBackOffInternal())
 	if err != nil {
+		orkuserr.PrintError(p.logger, "error while creating socket", err)
 		return ws, err
 	}
-	fmt.Println("socket has been created")
 	return ws, nil
 }
 
-func (p *Pool) Get() (Connection, error){
-	// Check if connection is possible
-	conn :=  <-p.Connections
-	// Open a TCP connection
-	requestMessage, err := GraphSONSerializer(Query(`g.E()`))
-	if err != nil {
-		return conn, err
-	}
+func (p *Pool) Get() (Connection, error) {
+	p.logger.Log("getting connection")
+	conn := <-p.Connections
+	requestMessage, _ := GraphSONSerializer(Query(`g.E()`))
 	if err := websocket.Message.Send(conn.ws, requestMessage); err != nil {
-		ws, err := p.createSocket() // here is backoff retry
+		orkuserr.PrintError(p.logger, "error while sending ping message", err)
+	}
+	_, err := conn.ReadResponse()
+	if err != nil {
+		orkuserr.PrintError(p.logger, "connection loss", err)
+		ws, err := p.createSocket() // here is backoff retry placed
 		if err != nil {
 			return conn, err
 		}
 		conn.ws = ws
-		fmt.Println("New connection is created")
+		p.logger.Log("connection has been renewed")
 	}
 	return conn, nil
 }
@@ -115,21 +122,22 @@ func (p *Pool) ExecQuery(query string) ([]byte, error) {
 func (p *Pool) Exec(req *Request) ([]byte, error) {
 	conn, err := p.Get()
 	if err != nil {
+		orkuserr.PrintError(p.logger, "error while getting connection from pool", err)
 		return nil, err
 	}
 	requestMessage, err := GraphSONSerializer(req)
 	if err != nil {
-		fmt.Println("error in exec2")
+		orkuserr.PrintError(p.logger, "error while serialising request", err)
 		return nil, err
 	}
 	// Open a TCP connection
 	if err := websocket.Message.Send(conn.ws, requestMessage); err != nil {
+		orkuserr.PrintError(p.logger, "error while sending message", err)
 		return nil, err
 	}
-
 	data, err := conn.ReadResponse()
 	if err != nil {
-		fmt.Println("error in exec2")
+		orkuserr.PrintError(p.logger, "error while reading response", err)
 		return nil, err
 	}
 	p.Put(conn)

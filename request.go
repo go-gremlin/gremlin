@@ -72,6 +72,19 @@ func Query(query string) *Request {
 	return req
 }
 
+func Close() *Request {
+	args := &RequestArgs{}
+	u := uuid.NewV4()
+	uuidString := u.String()
+	req := &Request{
+		RequestId: uuidString,
+		Op:        "close",
+		Processor: "session",
+		Args:      args,
+	}
+	return req
+}
+
 func (req *Request) Bindings(bindings Bind) *Request {
 	req.Args.Bindings = bindings
 	return req

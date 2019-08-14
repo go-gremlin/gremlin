@@ -26,9 +26,8 @@ type Pool struct {
 	origin         string
 	MaxConnections int
 	Auth           []OptAuth
-	// Connections    map[int]*Connection
-	Connections chan Connection
-	logger      log.Logger
+	Connections    chan Connection
+	logger         log.Logger
 }
 
 type Connection struct {
@@ -47,7 +46,7 @@ func NewClient(logger log.Logger, urlStr string, origin string, maxConn []int, o
 	}
 
 	// Check if connection is possible and close it
-	ws, err := pool.createSocket()
+	ws, err := pool.createSocket(0)
 	if err != nil {
 		return nil, err
 	}
@@ -60,25 +59,24 @@ func NewClient(logger log.Logger, urlStr string, origin string, maxConn []int, o
 	}
 	pool.Connections = make(chan Connection, pool.MaxConnections)
 	for i := 0; i < pool.MaxConnections; i++ {
-		ws, err := pool.createSocket()
+		ws, err := pool.createSocket(i + 1)
 		if err != nil {
 			return nil, err
 		}
 		conn := Connection{
-			id:   i,
+			id:   i + 1,
 			ws:   ws,
 			pool: pool,
 		}
 		pool.Connections <- conn
 	}
-	pool.logger.Log("Gremlin connection pool has been created, socket count", pool.MaxConnections)
 	return pool, nil
 }
 
 // createSocket() holds backoff retry logic
-func (p *Pool) createSocket() (ws *websocket.Conn, err error) {
+func (p *Pool) createSocket(id int) (ws *websocket.Conn, err error) {
 	backoff.Retry(func() error {
-		orkuserr.PrintError(p.logger, "retrying to create socket", err)
+		p.logger.Log("creatingSocket", id)
 		ws, err = websocket.Dial(p.urlStr, "", p.origin)
 		return err
 	}, utils.OrkusExponentialBackOffInternal())
@@ -89,24 +87,8 @@ func (p *Pool) createSocket() (ws *websocket.Conn, err error) {
 	return ws, nil
 }
 
-func (p *Pool) Get() (Connection, error) {
-	p.logger.Log("getting connection")
-	conn := <-p.Connections
-	requestMessage, _ := GraphSONSerializer(Query(`g.E()`))
-	if err := websocket.Message.Send(conn.ws, requestMessage); err != nil {
-		orkuserr.PrintError(p.logger, "error while sending ping message", err)
-	}
-	_, err := conn.ReadResponse()
-	if err != nil {
-		orkuserr.PrintError(p.logger, "connection loss", err)
-		ws, err := p.createSocket() // here is backoff retry placed
-		if err != nil {
-			return conn, err
-		}
-		conn.ws = ws
-		p.logger.Log("connection has been renewed")
-	}
-	return conn, nil
+func (p *Pool) Get() Connection {
+	return <-p.Connections
 }
 
 // Put - put used connection back to poll and get positive status if it's gone well
@@ -120,17 +102,13 @@ func (p *Pool) ExecQuery(query string) ([]byte, error) {
 }
 
 func (p *Pool) Exec(req *Request) ([]byte, error) {
-	conn, err := p.Get()
-	if err != nil {
-		orkuserr.PrintError(p.logger, "error while getting connection from pool", err)
-		return nil, err
-	}
+	conn := p.Get()
 	requestMessage, err := GraphSONSerializer(req)
 	if err != nil {
 		orkuserr.PrintError(p.logger, "error while serialising request", err)
 		return nil, err
 	}
-	// Open a TCP connection
+start:
 	if err := websocket.Message.Send(conn.ws, requestMessage); err != nil {
 		orkuserr.PrintError(p.logger, "error while sending message", err)
 		return nil, err
@@ -138,7 +116,16 @@ func (p *Pool) Exec(req *Request) ([]byte, error) {
 	data, err := conn.ReadResponse()
 	if err != nil {
 		orkuserr.PrintError(p.logger, "error while reading response", err)
-		return nil, err
+		if err.Error() == "EOF" { // EOF err we are getting on connection loss
+			conn.ws, err = p.createSocket(conn.id)
+			if err != nil {
+				return nil, err
+			}
+			p.logger.Log("socketRecovered", conn.id)
+			goto start
+		} else {
+			return nil, err
+		}
 	}
 	p.Put(conn)
 	return data, err
@@ -191,7 +178,6 @@ func (c *Connection) ReadResponse() (data []byte, err error) {
 			return
 		}
 	}
-	return
 }
 
 // AuthInfo includes all info related with SASL authentication with the Gremlin server

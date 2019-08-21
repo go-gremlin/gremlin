@@ -43,12 +43,6 @@ func NewClient(logger log.Logger, urlStr string, origin string, maxConn []int, o
 		logger: logger,
 	}
 
-	// Check if connection is possible and close it
-	ws, err := pool.createSocket()
-	if err != nil {
-		return nil, err
-	}
-	ws.Close()
 	// Can make maxConn as an optional since we already have optional arguments here
 	if len(maxConn) > 0 {
 		pool.MaxConnections = maxConn[0]

@@ -4,14 +4,19 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/cenkalti/backoff"
+	"github.com/go-kit/kit/log"
 	"golang.org/x/net/websocket"
 )
+
+const TheBigestMaxGremlinConnectionsLimit = 5
 
 // Clients include the necessary info to connect to the server and the underlying socket
 type Pool struct {
@@ -19,11 +24,9 @@ type Pool struct {
 	origin         string
 	MaxConnections int
 	Auth           []OptAuth
-	// Connections    map[int]*Connection
-	Connections chan Connection
+	Connections    chan Connection
+	logger         log.Logger
 }
-
-const TheBigestMaxGremlinConnectionsLimit = 5
 
 type Connection struct {
 	id   int
@@ -32,17 +35,14 @@ type Connection struct {
 	pool *Pool
 }
 
-func NewClient(urlStr string, origin string, maxConn []int, options ...OptAuth) (*Pool, error) {
-	// Check if connection is possible
-	_, err := websocket.Dial(urlStr, "", origin)
-	if err != nil {
-		return nil, err
-	}
+func NewClient(logger log.Logger, urlStr string, origin string, maxConn []int, options ...OptAuth) (*Pool, error) {
 	pool := &Pool{
 		urlStr: urlStr,
 		origin: origin,
 		Auth:   options,
+		logger: logger,
 	}
+
 	// Can make maxConn as an optional since we already have optional arguments here
 	if len(maxConn) > 0 {
 		pool.MaxConnections = maxConn[0]
@@ -65,16 +65,21 @@ func NewClient(urlStr string, origin string, maxConn []int, options ...OptAuth) 
 	return pool, nil
 }
 
-func (p *Pool) createSocket() (*websocket.Conn, error) {
-	ws, err := websocket.Dial(p.urlStr, "", p.origin)
+// createSocket() holds backoff retry logic
+func (p *Pool) createSocket() (ws *websocket.Conn, err error) {
+	backoff.Retry(func() error {
+		ws, err = websocket.Dial(p.urlStr, "", p.origin)
+		return err
+	}, exponentialBackOff())
 	if err != nil {
-		return nil, err
+		p.logger.Log("socketCreateErr", err)
+		return ws, err
 	}
 	return ws, nil
 }
 
-func (p *Pool) Get() (Connection, error) {
-	return <-p.Connections, nil
+func (p *Pool) Get() Connection {
+	return <-p.Connections
 }
 
 // Put - put used connection back to poll and get positive status if it's gone well
@@ -88,20 +93,32 @@ func (p *Pool) ExecQuery(query string) ([]byte, error) {
 }
 
 func (p *Pool) Exec(req *Request) ([]byte, error) {
-	conn, err := p.Get()
-	if err != nil {
-		return nil, err
-	}
+	conn := p.Get()
 	requestMessage, err := GraphSONSerializer(req)
 	if err != nil {
+		p.logger.Log("serializeRequestErr", err)
 		return nil, err
 	}
-	// Open a TCP connection
+start:
 	if err := websocket.Message.Send(conn.ws, requestMessage); err != nil {
+		p.logger.Log("sendMessageErr", err)
 		return nil, err
 	}
-
 	data, err := conn.ReadResponse()
+	if err != nil {
+		if err == io.EOF { // EOF err we are getting on connection loss
+			p.logger.Log("connectionLossErr", err)
+			conn.ws, err = p.createSocket()
+			if err != nil {
+				return nil, err
+			}
+			p.logger.Log("socketRecovered", conn.id)
+			goto start
+		} else {
+			p.logger.Log("readResponseErr", err)
+			return nil, err
+		}
+	}
 	p.Put(conn)
 	return data, err
 }
@@ -153,7 +170,6 @@ func (c *Connection) ReadResponse() (data []byte, err error) {
 			return
 		}
 	}
-	return
 }
 
 // AuthInfo includes all info related with SASL authentication with the Gremlin server
@@ -285,3 +301,25 @@ func CreateConnection() (conn net.Conn, server *url.URL, err error) {
 	}
 	return
 }
+
+func exponentialBackOff() *backoff.ExponentialBackOff {
+	b := &backoff.ExponentialBackOff{
+		InitialInterval:     128 * time.Millisecond,
+		RandomizationFactor: 0.5,
+		Multiplier:          2,
+		MaxInterval:         512 * time.Millisecond,
+		MaxElapsedTime:      10 * time.Second,
+		Clock:               SystemClock,
+	}
+	b.Reset()
+	return b
+}
+
+type systemClock struct{}
+
+func (t systemClock) Now() time.Time {
+	return time.Now()
+}
+
+// SystemClock implements Clock interface that uses time.Now().
+var SystemClock = systemClock{}

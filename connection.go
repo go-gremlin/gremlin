@@ -4,17 +4,15 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 
-	orkuserr "github.com/orkusinc/api/common/errors"
-
 	"github.com/cenkalti/backoff"
 	"github.com/go-kit/kit/log"
-	"github.com/orkusinc/api/common/utils"
 	"golang.org/x/net/websocket"
 )
 
@@ -46,7 +44,7 @@ func NewClient(logger log.Logger, urlStr string, origin string, maxConn []int, o
 	}
 
 	// Check if connection is possible and close it
-	ws, err := pool.createSocket(0)
+	ws, err := pool.createSocket()
 	if err != nil {
 		return nil, err
 	}
@@ -59,12 +57,12 @@ func NewClient(logger log.Logger, urlStr string, origin string, maxConn []int, o
 	}
 	pool.Connections = make(chan Connection, pool.MaxConnections)
 	for i := 0; i < pool.MaxConnections; i++ {
-		ws, err := pool.createSocket(i + 1)
+		ws, err := pool.createSocket()
 		if err != nil {
 			return nil, err
 		}
 		conn := Connection{
-			id:   i + 1,
+			id:   i,
 			ws:   ws,
 			pool: pool,
 		}
@@ -74,14 +72,13 @@ func NewClient(logger log.Logger, urlStr string, origin string, maxConn []int, o
 }
 
 // createSocket() holds backoff retry logic
-func (p *Pool) createSocket(id int) (ws *websocket.Conn, err error) {
+func (p *Pool) createSocket() (ws *websocket.Conn, err error) {
 	backoff.Retry(func() error {
-		p.logger.Log("creatingSocket", id)
 		ws, err = websocket.Dial(p.urlStr, "", p.origin)
 		return err
-	}, utils.OrkusExponentialBackOffInternal())
+	}, exponentialBackOff())
 	if err != nil {
-		orkuserr.PrintError(p.logger, "error while creating socket", err)
+		p.logger.Log("error while creating socket", err)
 		return ws, err
 	}
 	return ws, nil
@@ -105,19 +102,19 @@ func (p *Pool) Exec(req *Request) ([]byte, error) {
 	conn := p.Get()
 	requestMessage, err := GraphSONSerializer(req)
 	if err != nil {
-		orkuserr.PrintError(p.logger, "error while serialising request", err)
+		p.logger.Log("error while serialising request", err)
 		return nil, err
 	}
 start:
 	if err := websocket.Message.Send(conn.ws, requestMessage); err != nil {
-		orkuserr.PrintError(p.logger, "error while sending message", err)
+		p.logger.Log("error while sending message", err)
 		return nil, err
 	}
 	data, err := conn.ReadResponse()
 	if err != nil {
-		orkuserr.PrintError(p.logger, "error while reading response", err)
-		if err.Error() == "EOF" { // EOF err we are getting on connection loss
-			conn.ws, err = p.createSocket(conn.id)
+		p.logger.Log("error while reading response", err)
+		if err == io.EOF { // EOF err we are getting on connection loss
+			conn.ws, err = p.createSocket()
 			if err != nil {
 				return nil, err
 			}
@@ -309,3 +306,25 @@ func CreateConnection() (conn net.Conn, server *url.URL, err error) {
 	}
 	return
 }
+
+func exponentialBackOff() *backoff.ExponentialBackOff {
+	b := &backoff.ExponentialBackOff{
+		InitialInterval:     128 * time.Millisecond,
+		RandomizationFactor: 0.5,
+		Multiplier:          2,
+		MaxInterval:         512 * time.Millisecond,
+		MaxElapsedTime:      10 * time.Second,
+		Clock:               SystemClock,
+	}
+	b.Reset()
+	return b
+}
+
+type systemClock struct{}
+
+func (t systemClock) Now() time.Time {
+	return time.Now()
+}
+
+// SystemClock implements Clock interface that uses time.Now().
+var SystemClock = systemClock{}

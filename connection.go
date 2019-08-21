@@ -78,7 +78,7 @@ func (p *Pool) createSocket() (ws *websocket.Conn, err error) {
 		return err
 	}, exponentialBackOff())
 	if err != nil {
-		p.logger.Log("error while creating socket", err)
+		p.logger.Log("socketCreateErr", err)
 		return ws, err
 	}
 	return ws, nil
@@ -102,18 +102,18 @@ func (p *Pool) Exec(req *Request) ([]byte, error) {
 	conn := p.Get()
 	requestMessage, err := GraphSONSerializer(req)
 	if err != nil {
-		p.logger.Log("error while serialising request", err)
+		p.logger.Log("serializeRequestErr", err)
 		return nil, err
 	}
 start:
 	if err := websocket.Message.Send(conn.ws, requestMessage); err != nil {
-		p.logger.Log("error while sending message", err)
+		p.logger.Log("sendMessageErr", err)
 		return nil, err
 	}
 	data, err := conn.ReadResponse()
 	if err != nil {
-		p.logger.Log("error while reading response", err)
 		if err == io.EOF { // EOF err we are getting on connection loss
+			p.logger.Log("connectionLossErr", err)
 			conn.ws, err = p.createSocket()
 			if err != nil {
 				return nil, err
@@ -121,6 +121,7 @@ start:
 			p.logger.Log("socketRecovered", conn.id)
 			goto start
 		} else {
+			p.logger.Log("readResponseErr", err)
 			return nil, err
 		}
 	}

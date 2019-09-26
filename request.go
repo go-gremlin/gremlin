@@ -3,14 +3,19 @@ package gremlin
 import (
 	"encoding/json"
 	_ "fmt"
-	"github.com/satori/go.uuid"
+
+	uuid "github.com/satori/go.uuid"
 )
 
 type Request struct {
-	RequestId string       `json:"requestId"`
-	Op        string       `json:"op"`
-	Processor string       `json:"processor"`
-	Args      *RequestArgs `json:"args"`
+	RequestId   string       `json:"requestId"`
+	Op          string       `json:"op"`
+	Processor   string       `json:"processor"`
+	Args        *RequestArgs `json:"args"`
+	Msg         []byte
+	responseCh  chan *Response
+	inBatchMode bool
+	dataItems   []json.RawMessage
 }
 
 type RequestArgs struct {
@@ -28,7 +33,7 @@ type RequestArgs struct {
 // Formats the requests in the appropriate way
 type FormattedReq struct {
 	Op        string       `json:"op"`
-	RequestId interface{}  `json:"requestId"`
+	RequestId string       `json:"requestId"`
 	Args      *RequestArgs `json:"args"`
 	Processor string       `json:"processor"`
 }
@@ -48,8 +53,8 @@ func GraphSONSerializer(req *Request) ([]byte, error) {
 }
 
 func NewFormattedReq(req *Request) FormattedReq {
-	rId := map[string]string{"@type": "g:UUID", "@value": req.RequestId}
-	sr := FormattedReq{RequestId: rId, Processor: req.Processor, Op: req.Op, Args: req.Args}
+	// rId := map[string]string{"@type": "g:UUID", "@value": req.RequestId}
+	sr := FormattedReq{RequestId: req.RequestId, Processor: req.Processor, Op: req.Op, Args: req.Args}
 
 	return sr
 }

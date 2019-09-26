@@ -4,11 +4,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -16,9 +18,15 @@ import (
 
 // Clients include the necessary info to connect to the server and the underlying socket
 type Client struct {
-	Remote *url.URL
-	Ws     *websocket.Conn
-	Auth   []OptAuth
+	Remote   *url.URL
+	Ws       *websocket.Conn
+	Auth     []OptAuth
+	Host     string
+	sendCh   chan *Request
+	requests map[string]*Request
+	quit     chan bool
+	closeCh  chan bool
+	lock     sync.Mutex
 }
 
 func NewClient(urlStr string, options ...OptAuth) (*Client, error) {
@@ -26,20 +34,133 @@ func NewClient(urlStr string, options ...OptAuth) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	dialer := websocket.Dialer{}
-	ws, _, err := dialer.Dial(urlStr, http.Header{})
-	if err != nil {
-		return nil, err
-	}
-	return &Client{Remote: r, Ws: ws, Auth: options}, nil
+	client := Client{Remote: r, Auth: options, Host: urlStr}
+	client.quit = make(chan bool, 1)
+	client.requests = make(map[string]*Request)
+	client.sendCh = make(chan *Request, 10)
+
+	go client.loop()
+	return &client, nil
 }
 
 // Client executes the provided request
 func (c *Client) ExecQuery(query string) ([]byte, error) {
 	req := Query(query)
-	return c.Exec(req)
+	//return c.Exec(req)
+	responseCh, err := c.queueRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	response := <-responseCh
+	if response.Err != nil {
+		return nil, response.Err
+	}
+
+	return response.Result.Data, nil
+
+}
+func (c *Client) queueRequest(req *Request) (<-chan *Response, error) {
+	requestMessage, err := GraphSONSerializer(req)
+	if err != nil {
+		return nil, err
+	}
+	req.Msg = requestMessage
+	req.responseCh = make(chan *Response, 1)
+	req.inBatchMode = false
+	req.dataItems = make([]json.RawMessage, 0)
+	select {
+	case <-c.closeCh:
+		return nil, ErrConnectionClosed
+	default:
+	}
+	c.sendCh <- req
+	return req.responseCh, nil
 }
 
+func (c *Client) loop() {
+	for {
+		if err := c.createConnection(); err != nil {
+			return
+		}
+		c.closeCh = make(chan bool)
+		var wg sync.WaitGroup
+
+		wg.Add(1)
+		go func() {
+			err := c.sendLoop()
+			if err != nil {
+				log.Println(err)
+			}
+			c.closeConnection()
+			wg.Done()
+		}()
+
+		wg.Add(1)
+		go func() {
+			err := c.recvLoop()
+			log.Println(err)
+			if err == nil {
+				panic("recvloop not get nil err")
+			}
+			close(c.closeCh)
+			wg.Done()
+		}()
+
+		wg.Wait()
+
+		select {
+		case <-c.quit:
+			c.flushRequest()
+			return
+		default:
+		}
+
+		// server is not close,should flush request
+		c.flushRequest()
+	}
+}
+func (c *Client) flushRequest() {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	for requestId, request := range c.requests {
+		response := Response{Err: ErrClosing}
+		request.responseCh <- &response
+		delete(c.requests, requestId)
+	}
+
+	c.requests = make(map[string]*Request)
+}
+func (c *Client) sendLoop() error {
+	for {
+		select {
+		case request := <-c.sendCh:
+			err := c.Ws.WriteMessage(websocket.BinaryMessage, request.Msg)
+			// if fail, direct return
+			// send responseCh error
+			if err != nil {
+				response := Response{Err: ErrConnectionClosed}
+				responseCh := request.responseCh
+				responseCh <- &response
+				return err
+			}
+			// if success, put request in requests map
+			if request.Op != "authentication" {
+				c.lock.Lock()
+				c.requests[request.RequestId] = request
+				c.lock.Unlock()
+			}
+
+		case <-c.closeCh:
+			return nil
+		case <-c.quit:
+			return nil
+		}
+	}
+}
+
+/**
 func (c *Client) Exec(req *Request) ([]byte, error) {
 	requestMessage, err := GraphSONSerializer(req)
 	if err != nil {
@@ -53,14 +174,31 @@ func (c *Client) Exec(req *Request) ([]byte, error) {
 	}
 	return c.ReadResponse()
 }
+**/
 
-func (c *Client) ReadResponse() (data []byte, err error) {
-	// Data buffer
-	var message []byte
-	var dataItems []json.RawMessage
-	inBatchMode := false
+func (c *Client) createConnection() error {
+	dialer := websocket.Dialer{}
+	ws, _, err := dialer.Dial(c.Host, http.Header{})
+	if err != nil {
+		return err
+	}
+	c.Ws = ws
+	return nil
+}
+func (c *Client) closeConnection() {
+	if c.Ws != nil {
+		c.Ws.Close()
+	}
+}
+func (c *Client) Close() {
+	close(c.quit)
+}
+func (c *Client) recvLoop() (err error) {
 	// Receive data
 	for {
+		// Data buffer
+		var message []byte
+
 		if _, message, err = c.Ws.ReadMessage(); err != nil {
 			return
 		}
@@ -71,28 +209,61 @@ func (c *Client) ReadResponse() (data []byte, err error) {
 		var items []json.RawMessage
 		switch res.Status.Code {
 		case StatusNoContent:
-			return
+			res.Result.Data = make([]byte, 0)
+			c.lock.Lock()
+			if request, ok := c.requests[res.RequestId]; ok {
+				delete(c.requests, res.RequestId)
+				request.responseCh <- res
+			}
+			c.lock.Unlock()
 
 		case StatusAuthenticate:
-			return c.Authenticate(res.RequestId)
-		case StatusPartialContent:
-			inBatchMode = true
-			if err = json.Unmarshal(res.Result.Data, &items); err != nil {
+			if err = c.Authenticate(res.RequestId); err != nil {
 				return
 			}
-			dataItems = append(dataItems, items...)
+		case StatusPartialContent:
+			if err = json.Unmarshal(res.Result.Data, &items); err != nil {
+				c.lock.Lock()
+				if request, ok := c.requests[res.RequestId]; ok {
+					delete(c.requests, res.RequestId)
+					res.Err = err
+					request.responseCh <- res
+				}
+				c.lock.Unlock()
+				return
+			}
+
+			c.lock.Lock()
+			if request, ok := c.requests[res.RequestId]; ok {
+				request.inBatchMode = true
+				request.dataItems = append(request.dataItems, items...)
+			}
+			c.lock.Unlock()
 
 		case StatusSuccess:
-			if inBatchMode {
+			c.lock.Lock()
+			request, ok := c.requests[res.RequestId]
+			// not find request
+			if !ok {
+				c.lock.Unlock()
+				continue
+			}
+			delete(c.requests, res.RequestId)
+			c.lock.Unlock()
+
+			if request.inBatchMode {
 				if err = json.Unmarshal(res.Result.Data, &items); err != nil {
+					res.Err = err
+					request.responseCh <- res
 					return
 				}
-				dataItems = append(dataItems, items...)
-				data, err = json.Marshal(dataItems)
+				request.dataItems = append(request.dataItems, items...)
+
+				res.Result.Data, _ = json.Marshal(request.dataItems)
+				request.responseCh <- res
 			} else {
-				data = res.Result.Data
+				request.responseCh <- res
 			}
-			return
 
 		default:
 			if msg, exists := ErrorMsg[res.Status.Code]; exists {
@@ -103,7 +274,6 @@ func (c *Client) ReadResponse() (data []byte, err error) {
 			return
 		}
 	}
-	return
 }
 
 // AuthInfo includes all info related with SASL authentication with the Gremlin server
@@ -156,10 +326,10 @@ func OptAuthUserPass(user, pass string) OptAuth {
 }
 
 // Authenticates the connection
-func (c *Client) Authenticate(requestId string) ([]byte, error) {
+func (c *Client) Authenticate(requestId string) error {
 	auth, err := NewAuthInfo(c.Auth...)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	var sasl []byte
 	sasl = append(sasl, 0)
@@ -173,8 +343,19 @@ func (c *Client) Authenticate(requestId string) ([]byte, error) {
 		Processor: "trasversal",
 		Op:        "authentication",
 		Args:      args,
+		// responseCh: make(chan *Response, nil),
 	}
-	return c.Exec(authReq)
+	return c.queueAuthRequest(authReq)
+}
+func (c *Client) queueAuthRequest(req *Request) error {
+	requestMessage, err := GraphSONSerializer(req)
+	if err != nil {
+		return err
+	}
+	req.Msg = requestMessage
+	c.sendCh <- req
+
+	return nil
 }
 
 var servers []*url.URL

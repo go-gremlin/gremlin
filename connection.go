@@ -93,12 +93,13 @@ func (p *Pool) ExecQuery(query string) ([]byte, error) {
 }
 
 func (p *Pool) Exec(req *Request) ([]byte, error) {
-	conn := p.Get()
 	requestMessage, err := GraphSONSerializer(req)
 	if err != nil {
 		p.logger.Log("serializeRequestErr", err)
 		return nil, err
 	}
+	conn := p.Get()
+	defer p.Put(conn)
 start:
 	if err := websocket.Message.Send(conn.ws, requestMessage); err != nil {
 		p.logger.Log("sendMessageErr", err)
@@ -119,7 +120,6 @@ start:
 			return nil, err
 		}
 	}
-	p.Put(conn)
 	return data, err
 }
 
